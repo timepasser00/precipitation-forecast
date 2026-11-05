@@ -1,8 +1,8 @@
 # 0008: Tile and data format
 
-Status: **accepted, provisional.** Measured on synthetic data (Phase 3 spike). Re-run `make sample`
-then `make spike ARGS=--real` on real fields before Phase 4; section "What real data could change"
-lists what would reopen this.
+Status: **accepted.** Measured on synthetic data and checked against real IFS and AIFS fields
+(0.25 degree, steps 6/12/24/48 h, run 2026-11-05 12z). Real data confirmed the value convention
+and the quantisation scheme, and showed sizes are 2-3x the synthetic ones (section "Real data").
 
 ## Context
 The browser must animate precipitation smoothly, switch palettes, and compute source-vs-source
@@ -28,8 +28,8 @@ differences. Request counts drive cost (ADR 0003, 0006). Browsers decode images 
   It is the only mutable object. See `docs/data-format.md`.
 
 ## Measurements (synthetic, 2026-11-06)
-Production tiers and registry, run `2026110500`. Synthetic fields are smoother than real ones, so
-treat sizes as a lower bound.
+Production tiers and registry, run `2026110500`. These synthetic sizes are a lower bound: real
+fields are 2-3x larger (see "Real data"); the real-data estimate is in DESIGN section 5.4.
 
 | Tier | Frames | Bytes (IFS) | Objects | Largest tile atlas (8 frames) |
 |---|---|---|---|---|
@@ -57,12 +57,28 @@ Alternatives measured on the same tiles:
 | linear8 PNG | 2.0 MB | rejected: loses drizzle |
 | pre-coloured 10-level PNG | 0.9 MB | rejected: no palette switching, no client differences |
 
-## What real data could change
-1. Real fields are noisier, so PNG atlases will be larger; if objects exceed ~1 MB, lower
-   `frames_per_chunk` to 4.
-2. If WebP lossless keeps a >20% win on real data and decodes fast on mid-range phones, switch.
-3. If `tp` is not accumulated from the forecast start in metres, derivation changes (the pipeline
-   refuses to publish rather than guess; see `ConventionError`).
+## Real data (2026-11-06)
+Run with `pf-pipeline sample` and `scripts/spike_tile_format.py --grib` on real files:
+
+- **Convention confirmed.** Every message is `stepType=accum`, `startStep=0`. IFS `tp` is in
+  metres (paramId 228), AIFS `tp` in `kg m**-2` = mm (paramId 228228). Global mean over 24 h:
+  2.54 mm (IFS), 2.52 mm (AIFS).
+- **Packing noise.** Both are lossy (`grid_ccsds`, 12 bits per value), so a field with a 459 mm
+  maximum moves in 0.11 mm steps. Subtracting two accumulations gives small negative values on
+  dry cells (worst -0.12 mm at 24-48 h, 3% of cells beyond -0.05 mm at 12-24 h). The first
+  guard used a fixed 0.05 mm tolerance and rejected real IFS data. It now tolerates the sum of
+  the two fields' packing steps, and still rejects per-interval data.
+- **Quantisation unchanged:** relative error median 1.0-1.1%, max 2.16%. Linear 8-bit wipes out
+  25-32% of 0.1-1 mm cells.
+- **Sizes are 2.3-2.8x synthetic.** Log8 PNG at the global tier, per tile per frame: 21 KB (IFS),
+  17.5 KB (AIFS), against 7.7 KB synthetic; South Asia tier 8.5 KB (IFS). Largest 4-frame atlas
+  146 KB, so 8-frame objects should land around 250-300 KB. `frames_per_chunk = 8` stays.
+- **WebP lossless:** 17% (IFS) and 21% (AIFS) smaller than PNG. Not enough to justify the switch
+  without a phone decode test; revisit in Phase 4.
+- **Point cube:** frame-major is 12-19% smaller than cell-major on real fields, confirming the
+  layout change.
+- **Not yet measured on real data:** the 0.1 degree India tier (needs a 0p1 download), full
+  36-60 frame runs, and wall-clock time including real downloads.
 
 ## Still open (Phase 4)
 Decode speed on a mid-range phone; Cloudflare cache behaviour for these objects (ADR 0006);

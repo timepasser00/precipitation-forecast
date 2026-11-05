@@ -8,7 +8,7 @@ A web app that turns ECMWF Open Data precipitation forecasts (IFS and AIFS) into
 |---|---|---|
 | 1 | Project structure | **Done** |
 | 2 | Framework selection | **Done, pending review** (ADRs 0004, 0007-0011) |
-| 3 | `git init` + backend API + docs | **Built, pending review** (synthetic data; real-data check outstanding) |
+| 3 | `git init` + backend API + docs | **Built, pending review** (real fields checked; one full real run outstanding) |
 | 4 | Frontend UI | Not started |
 | 5 | Optimization and scaling | Not started |
 

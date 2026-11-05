@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | v0.4 (Phase 3 built; ready for review) |
+| Status | v0.5 (Phase 3 built, real-data checked; ready for review) |
 | Date | 2026-11-06 |
 | Owner | Atul Raj |
 | Audience | Primarily users in India |
@@ -104,7 +104,7 @@ Why days 8-15 are daily totals: detail that far out is mostly noise, so coarse a
 ### 5.2 Derived product
 
 - The pipeline converts ECMWF total precipitation into per-interval precipitation in millimetres, on a UTC time axis.
-- **Verify:** the exact `tp` definition, units and accumulation convention for IFS and for AIFS. The pipeline assumes accumulation since forecast start, in metres, and is built to fail loudly otherwise (strict GRIB decoding, `ConventionError`). `make sample` checks this against real files; it has not yet been run on real data.
+- **Verified on real files (2026-11-06):** `tp` is accumulated from forecast start for both models. IFS is in metres, AIFS in kg m-2 (= mm). Both are lossy-packed (12 bits), so differences of accumulations carry a small packing error; the pipeline tolerates the sum of the two packing steps and still fails loudly on anything larger (`ConventionError`). Details in ADR 0008.
 - Values are quantised to one byte per value, log-spaced (log8, at most 2.2% relative error). Decided in ADR 0008; format in `docs/data-format.md`.
 
 ### 5.3 Retention (**Decided**)
@@ -114,7 +114,7 @@ Why days 8-15 are daily totals: detail that far out is mostly noise, so coarse a
 
 ### 5.4 Size (measured on synthetic data, Phase 3)
 
-One run, production tiers: IFS 16.2 MB (t0 10.3, t1 1.5, t2 4.3), AIFS 10.5 MB (t0 9.6, t1 1.0), total **26.8 MB**; two kept runs about 54 MB. These are lower bounds (synthetic fields are smoother than real ones) and were taken before the point cube moved to a smaller layout. Pipeline for both sources: 30 s wall, 525 MB peak memory, excluding real download time. Re-measure on real data (ADR 0008). Each extra source adds a similar amount, so storage stays small; pipeline time grows faster than storage.
+Synthetic, one run, production tiers: 26.8 MB (IFS 16.2, AIFS 10.5). Real fields turned out **2.3-2.8x larger per frame** than synthetic ones (noisier rain), so the working estimate for one run of both sources is **about 40-70 MB**, and about **80-140 MB** for the two kept runs, still a rounding error against R2's free 10 GB. The estimate is extrapolated from real 0.25 degree fields (4 frames), not measured on a full run; the 0.1 degree tier is not yet measured on real data. Pipeline for both sources on synthetic data: 30 s wall, 525 MB peak, excluding real download time. Each extra source adds a similar amount, so storage stays small; pipeline time grows faster than storage.
 
 ### 5.5 Sources and access paths
 
@@ -323,7 +323,7 @@ Update: Hetzner's own page (2026-11-06) lists the default VM (CX23) at €5.99 p
 |---|---|---|
 | 1 | Project structure | Layout and rules reviewed. **Done.** |
 | 2 | Stack decisions | One ADR per stack decision with rejected alternatives (ADRs 0004, 0007-0011). **Done, pending review.** |
-| 3 | Pipeline + API | Pipeline and API built and tested end to end on synthetic data (91 tests, CI, OpenAPI contract). **Open: one run of real IFS and AIFS data** (needs a networked machine; `make sample`). **Built, pending review.** |
+| 3 | Pipeline + API | Pipeline and API built and tested end to end on synthetic data (91 tests, CI, OpenAPI contract). Real IFS and AIFS fields decode and pass the guards (`make sample`). **Open: one full real run** (`pf-pipeline run --source ... --run latest`, needs a networked machine) to measure the 0.1 degree tier, real sizes and wall time. **Built, pending review.** |
 | 4 | Web UI | FR1-FR7 working on real data. NFR2, NFR3, NFR6 met. |
 | 5 | Optimise and scale | Cost target holds under a load test. Bottlenecks measured and addressed. |
 
@@ -344,7 +344,7 @@ Update: Hetzner's own page (2026-11-06) lists the default VM (CX23) at €5.99 p
 
 ## 13. Open questions and items to verify
 
-1. `tp` definition, units, accumulation for IFS and AIFS.
+1. ~~`tp` definition, units, accumulation for IFS and AIFS.~~ **Verified** on real files (accumulated from start; IFS m, AIFS kg m-2; 12-bit packing).
 2. Bytes per point after packing, and whole-pipeline run time (measure on a small VM).
 3. Whether download of single fields by byte range is fast enough for 4 runs/day.
 4. Exact attribution wording required by ECMWF.
@@ -357,7 +357,7 @@ Update: Hetzner's own page (2026-11-06) lists the default VM (CX23) at €5.99 p
 11. Observations (satellite rainfall) to show which source was closer. **Default taken:** deferred past v1. Owner may change.
 12. Do byte-range reads of larger packed files cache well on Cloudflare? Phase 3 spike.
 13. Resampling method that preserves rainfall totals when putting sources on a common grid.
-14. Tile and atlas format: **accepted provisionally** on synthetic data (ADR 0008). Remaining: real-data sizes, phone decode speed, Cloudflare cache behaviour.
+14. Tile and atlas format: **accepted** (ADR 0008), checked on real 0.25 degree fields. Remaining: full-run sizes, 0.1 degree tier, phone decode speed, Cloudflare cache behaviour.
 15. Basemap source and style (Phase 4 design).
 16. Hetzner price, stock, VAT and IPv4 charge at order time (ADR 0011).
 17. Deployment method: plain systemd timers with an idempotent CLI (ADR 0011); containers only if needed later.
@@ -374,7 +374,7 @@ Update: Hetzner's own page (2026-11-06) lists the default VM (CX23) at €5.99 p
 | 0005 | Source-agnostic ingestion and comparison | Accepted as baseline |
 | 0006 | Caching strategy | Accepted as baseline |
 | 0007 | Python for pipeline and API (FastAPI, eccodes) | Accepted |
-| 0008 | Tile and data format (log8 PNG atlases, separate point cube) | Accepted, provisional (synthetic data) |
+| 0008 | Tile and data format (log8 PNG atlases, separate point cube) | Accepted (checked on real 0.25 degree data) |
 | 0009 | Map renderer: MapLibre GL JS + custom WebGL layer | Accepted, Phase 4 globe spike |
 | 0010 | Tooling, conventions, CI | Accepted as baseline |
 | 0011 | Compute, hosting, scheduling | Accepted as baseline |
@@ -395,6 +395,7 @@ Update: Hetzner's own page (2026-11-06) lists the default VM (CX23) at €5.99 p
 
 ## 16. Changelog
 
+- **v0.5 (2026-11-06):** real IFS/AIFS fields checked: convention verified, packing-noise tolerance added to the guard, real sizes 2-3x synthetic (5.4 revised), ADR 0008 accepted.
 - **v0.4 (2026-11-06):** Phase 3 built: pipeline, API, shared core, CI, OpenAPI contract. ADR 0008 accepted provisionally with measured sizes; 5.4 and section 7 updated to what was built; open questions 14, 17, 18 updated.
 - **v0.3 (2026-11-06):** Phase 2 stack decisions (ADRs 0007-0011), technology stack table (6.4), defaults taken for open questions 7, 10, 11, Hetzner price update.
 - **v0.2 (2026-11-06):** sources generalised beyond IFS and AIFS, source registry and adapters added, Angular recorded, caching expanded into its own section, Cloudflare confirmed, ADRs 0004-0006.
