@@ -12,7 +12,7 @@ Production is paid from personal funds. The main cost risks are egress, per-requ
 - Pack tiles into few large objects.
 - No autoscaling services. Billing alerts from day one.
 - Target steady-state at or under $10 per month, alert at $15 (proposed).
-- Storage accessed through an S3-compatible interface to keep provider choice open. Cloudflare R2 is the first candidate (free egress).
+- Storage accessed through an S3-compatible interface to keep provider choice open. Cloudflare R2 with a custom domain is chosen (owner confirmed 2026-11-06). Egress is free. The `r2.dev` URL is development-only (rate-limited, no caching).
 
 ## Alternatives considered
 - **Serve tiles from the application server:** simple, but egress and CPU would drive the bill.

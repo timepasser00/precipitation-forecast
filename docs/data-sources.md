@@ -21,3 +21,7 @@ Facts below come from ECMWF's own pages (checked 2026-11-06). Re-verify before r
 - Exact `tp` (total precipitation) definition, units and accumulation convention for IFS vs AIFS. Not covered in the pages checked.
 - Exact attribution wording required in the UI.
 - Whether we need 0.1° at all, or whether 0.25° is enough for the experience.
+
+## Other candidate sources
+
+ECMWF is the baseline. Other candidates (NOAA GFS, DWD ICON, India's NCMRWF models, observed rainfall) and the rules for choosing sources and access paths are in `DESIGN.md` sections 5.5 and 5.6. Nothing beyond ECMWF is enabled until terms are verified.

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | v0.1 baseline |
+| Status | v0.2 (multi-source, Angular, explicit caching) |
 | Date | 2026-11-06 |
 | Owner | Atul Raj |
 | Audience | Primarily users in India |
@@ -15,7 +15,7 @@ Legend used below: **Decided** = agreed with the owner. **Proposed** = my recomm
 
 ## 1. Vision and goals
 
-A web app that turns ECMWF Open Data precipitation forecasts (IFS and AIFS) into an engaging, explorable experience: watch rain move across India, zoom into your city, and compare what the two models expect.
+A web app that turns ECMWF Open Data precipitation forecasts (IFS and AIFS) into an engaging, explorable experience: watch rain move across India, zoom into your city, and compare what different forecast sources expect. ECMWF IFS and AIFS are the starting sources.
 
 | ID | Goal |
 |---|---|
@@ -23,7 +23,8 @@ A web app that turns ECMWF Open Data precipitation forecasts (IFS and AIFS) into
 | G2 | Engaging: animation, smooth zoom, a distinctive visual identity. |
 | G3 | Cheap to run in production, paid from personal funds. |
 | G4 | Honest: never imply more precision than the model or the data has. |
-| G5 | IFS vs AIFS comparison is a first-class feature. |
+| G5 | Comparing forecast sources side by side (starting with IFS vs AIFS, designed for more) is a first-class feature. |
+| G6 | Source-agnostic: fetch from whichever source and access path gives the best cost, quality and correctness. |
 
 **Non-goals for v1:** user accounts, historical archive, nowcasting, variables other than precipitation, native mobile apps, global high-resolution data, ensemble/probability views (designed for, built later).
 
@@ -31,6 +32,9 @@ A web app that turns ECMWF Open Data precipitation forecasts (IFS and AIFS) into
 
 - **Budget:** personal funds. Target steady-state cost is in section 10.
 - **Team:** one developer. Python is comfortable. Operational simplicity beats cleverness.
+- **Frontend:** Angular (owner's choice, ADR 0004).
+- **Hosting:** Cloudflare R2 plus CDN on a custom domain (owner confirmed, ADR 0003).
+- **Sources:** not tied to one provider or one download location (section 5.5).
 - **Audience:** India. Times shown in IST, stored in UTC.
 - **Upstream (ECMWF Open Data), see `data-sources.md`:**
   - Runs at 00/06/12/18 UTC, GRIB2 files.
@@ -51,6 +55,7 @@ A web app that turns ECMWF Open Data precipitation forecasts (IFS and AIFS) into
 6. **Honest precision.** The UI states the native resolution of what is shown and never presents upscaled data as detail.
 7. **Contract first.** The OpenAPI spec is written and reviewed before any endpoint is implemented.
 8. **Measure, then optimise.** Numbers in this document that are guesses are marked **Verify** and replaced with measurements in Phase 3.
+9. **Source-agnostic.** A source (what we show) is separate from an access path (where we fetch it). Both are configuration, and every source passes a licence check before it is enabled.
 
 ## 4. Requirements
 
@@ -61,8 +66,8 @@ A web app that turns ECMWF Open Data precipitation forecasts (IFS and AIFS) into
 | FR1 | Map of precipitation for a chosen model and time, India in focus with global context | 4 |
 | FR2 | Time slider and play/pause animation | 4 |
 | FR3 | Zoom with progressive refinement (coarse tile instantly, sharper tile fades in) | 4 |
-| FR4 | Point forecast: search, click or geolocate to get a time series for both models | 3-4 |
-| FR5 | IFS vs AIFS comparison (side-by-side or difference view) | 4 |
+| FR4 | Point forecast: search, click or geolocate to get a time series for each enabled source | 3-4 |
+| FR5 | Compare any two enabled sources (side-by-side, difference map, overlaid point charts) on a common grid and time base | 4 |
 | FR6 | Show model run time and data age, in IST | 4 |
 | FR7 | Visible ECMWF attribution as required by the licence (**Verify** exact wording) | 4 |
 | FR8 | "What changed since the previous run" view (**Proposed**) | post-v1 |
@@ -78,12 +83,13 @@ A web app that turns ECMWF Open Data precipitation forecasts (IFS and AIFS) into
 | NFR5 | Site stays up (stale but labelled) when the pipeline or ECMWF is down |
 | NFR6 | Accessible: colour-blind-safe palette, respects reduced-motion, keyboard operable |
 | NFR7 | Privacy: user location is used only in the browser, never sent to our servers |
+| NFR8 | CDN cache hit ratio for tiles at or above 95% in steady state, verified by an automated check |
 
 ## 5. Data design
 
 ### 5.1 Tiers (**Decided** as baseline)
 
-Detail is allocated on a space x time grid. Region boxes are configuration, not code.
+Detail is allocated on a space x time grid. Region boxes are configuration, not code. Tiers are defined per source; the table below is the ECMWF baseline.
 
 | Tier | Space | Time | Models | Coverage |
 |---|---|---|---|---|
@@ -108,7 +114,48 @@ Why days 8-15 are daily totals: detail that far out is mostly noise, so coarse a
 
 ### 5.4 Size estimate (**Verify**)
 
-Assuming 0.5-1 byte per grid point after packing: about 17-34 MB per run for all tiers, so about 35-70 MB for the two kept runs. Real numbers come from Phase 3.
+Assuming 0.5-1 byte per grid point after packing: about 17-34 MB per run for all tiers, so about 35-70 MB for the two kept runs. Real numbers come from Phase 3. Each additional source adds a similar amount again (tier sizes differ), so storage stays small; pipeline run time grows faster than storage.
+
+### 5.5 Sources and access paths
+
+We are not tied to one provider. Two terms keep this clear:
+
+- **Source:** a forecast product we display, for example `ecmwf-ifs` or `ecmwf-aifs`.
+- **Access path:** where we fetch that source's files from, for example the ECMWF portal or a cloud mirror.
+
+Each source has an ordered list of access paths in config, chosen by:
+
+| Criterion | Question |
+|---|---|
+| Cost | What does it cost us to pull the data? |
+| Freshness | How long after the run does it appear? |
+| Reliability | Does it hold under load, and is there a fallback? |
+| Fidelity | Original files from the producer, or reprocessed by a third party? |
+| Terms | May we redistribute derived data publicly? |
+
+Rule: prefer original-fidelity files from a mirror with free or cheap egress. A third-party API that re-serves the data is used only if it clearly wins on a criterion and its terms allow our use (**Verify** per API).
+
+**Source registry (config):** id, provider, model, access paths, native grid, cadence and horizon, variable mapping, licence and required attribution text, enabled flag. The API publishes attribution from the registry (`/v1/sources`), so a source cannot be shown without it.
+
+**Source adapter:** every source implements the same small interface (list runs, fetch fields, decode into the canonical form in 5.6). Nothing downstream sees provider-specific formats.
+
+**Candidates (Proposed).** Nothing beyond ECMWF is enabled until the owner picks sources and their terms are checked.
+
+| Candidate | What was found (2026-11-06) | Status |
+|---|---|---|
+| ECMWF IFS | 0.25° and 0.1° GRIB2, CC-BY-4.0, 4 runs/day, 15-day horizon | Baseline |
+| ECMWF AIFS | 0.25° GRIB2, same terms | Baseline |
+| NOAA GFS | 0.25° GRIB on an AWS open-data bucket, rolling four-week archive, notification on new objects. Terms, horizon and current bucket name not confirmed | **Verify** |
+| DWD ICON | A third-party mirror lists CC-BY-4.0, a native icosahedral grid that needs regridding, and DWD deleting raw files after about 24 h. Horizon not confirmed | **Verify** at the DWD source |
+| India's NCMRWF models | Open download access and terms could not be confirmed | **Investigate** |
+| Observed rainfall (satellite products) | Not researched | Idea: shows which source was closer to reality. Needs a short observation history, which relaxes "forget the past" slightly |
+
+### 5.6 Making sources comparable
+
+- **Canonical form:** one variable (precipitation), millimetres per interval, UTC time axis, regular lat/lon grid per tier.
+- **Comparison grid:** in compare mode all sources are resampled to one shared grid (0.25° baseline). Single-source views still use each source's own tiers. Resampling must preserve rainfall totals (area-weighted, not plain interpolation). **Verify** in Phase 3.
+- **Time base:** compare on the coarsest common cadence, and only over the horizon every selected source covers. Say so in the UI.
+- **Run alignment:** sources publish at different times. Compare the latest run of each by valid time, and show each run's time.
 
 ## 6. Architecture
 
@@ -136,7 +183,7 @@ flowchart LR
 
 | Component | Responsibility | Never does |
 |---|---|---|
-| `apps/pipeline` | Detect new runs, fetch, decode, derive, build tiers, publish | Serve HTTP |
+| `apps/pipeline` | Detect new runs, fetch (via per-source adapters), decode, normalise, derive, build tiers, publish | Serve HTTP |
 | `apps/api` | Serve manifest, point time series, API docs. Thin and read-only | Decode GRIB, compute tiles |
 | `apps/web` | Render, interact, prefetch | Process data |
 | `packages/api-contract` | OpenAPI spec shared by api and web | Contain logic |
@@ -146,11 +193,11 @@ Boundary rules are in `STRUCTURE.md`.
 
 ### 6.2 Run lifecycle in the pipeline
 
-1. **Detect** a new run (poll or notification). Runs are identified by `model/YYYYMMDDHH`.
-2. **Fetch** only the precipitation fields needed, not whole files.
+1. **Detect** a new run (poll or notification). Runs are identified by `source/YYYYMMDDHH`.
+2. **Fetch** only the precipitation fields needed, not whole files, through the source's adapter and chosen access path (section 5.5).
 3. **Decode and derive** per-interval mm.
 4. **Build** each tier and its pyramid. Tiers are independent: tier 0 and 1 can publish before tier 2 arrives.
-5. **Pack** tiles into a few larger files (avoids per-object request costs, see section 10).
+5. **Pack** tiles into a modest number of medium-size objects (avoids per-object request costs and stays CDN-friendly, see sections 6.3 and 10).
 6. **Upload** to a new, versioned path.
 7. **Verify** (counts, checksums, value-range sanity).
 8. **Publish** by atomically updating the manifest to point at the new run.
@@ -158,11 +205,28 @@ Boundary rules are in `STRUCTURE.md`.
 
 The pipeline must be idempotent and resumable: re-running a run produces the same result and a crash mid-way never leaves a half-published run visible.
 
-### 6.3 Caching model (central to cost)
+### 6.3 Caching (central to cost and speed)
 
-- Run data lives at **versioned, immutable paths** and is cached for a long time.
-- Only the small **manifest** is mutable, with a short cache lifetime (order of a minute, **Proposed**).
-- Result: nearly all traffic is served from CDN cache, and origin reads stay small.
+**R2 is storage, not a cache.** The cache is the CDN in front of it. Without one, every tile request would be an R2 read and would be billed as one. Free egress does not remove request charges, and a cold R2 read is slower than an edge hit.
+
+| Layer | What it holds | Rule |
+|---|---|---|
+| 1. Browser memory | Decoded tiles and frames | LRU with a memory budget (set in Phase 4). Keeps pan, zoom and scrub instant |
+| 2. Browser HTTP cache | Every fetched file | Immutable data: `Cache-Control: public, max-age=31536000, immutable`. Manifest: short max-age |
+| 3. App shell | Angular build output | Content-hashed filenames with long cache. Optional Angular service worker for repeat visits (Proposed, Phase 4-5) |
+| 4. Cloudflare edge (CDN) | Tiles, data objects, manifest, cacheable API responses | Custom domain on the bucket, an explicit Cache Rule, tiered caching |
+| 5. API responses | Manifest, point series | `Cache-Control` set explicitly. Point queries snap lat/lon to the grid cell so many users share one cache key, and the run id is part of the key |
+| 6. R2 origin | Source of truth | Read only on an edge miss |
+
+Rules:
+
+1. **Immutable versioned keys.** Everything under `{source}/{run}/...` never changes after publish, so no cache purge is ever needed.
+2. **The manifest is the only mutable object.** Short TTL, on the order of 60 s (Proposed). After a new run publishes, clients see it within that time.
+3. **Cloudflare does not cache everything by default.** It decides by file extension (not content type), does not cache JSON or unlisted extensions, and applies a 120-minute edge TTL to cacheable responses with no `Cache-Control`. So we need an explicit Cache Rule for the data path and we always set `Cache-Control` ourselves. A manifest with no header would be served stale for up to 2 hours. Cloudflare respects origin `Cache-Control` and will not cache responses that carry `Set-Cookie` or `no-store`/`private`/`max-age=0`.
+4. **Custom domain, never `r2.dev`.** Cloudflare documents `r2.dev` as non-production, rate-limited, and without caching or WAF. Cloudflare recommends Smart Tiered Cache for R2 custom domains (confirm availability on our plan).
+5. **Range requests need care.** Cloudflare can cache partial content, but a `206` is cacheable only when it is unencoded and carries a concrete `Content-Range` and matching `Content-Length`, and the docs are unclear about a cold-miss range request. So the default is medium objects (hundreds of KB to a few MB, Proposed) fetched whole. Larger packed files read by byte range are adopted only if a Phase 3 spike proves they cache well.
+6. **Cold start after a publish.** The first users after a new run all miss, because the keys are new. Misses per run are roughly the number of distinct objects requested times the edge locations that request them (fewer with tiered caching). The pipeline may pre-warm India overview tiles after publishing (optional).
+7. **Measure.** Target hit ratio at or above 95% (NFR8). An automated check requests an object twice and asserts the second response is a cache hit (`cf-cache-status: HIT`) and carries the intended `Cache-Control`. Watch R2 operation counts after launch: they should track misses, not traffic.
 
 ## 7. API design
 
@@ -175,18 +239,20 @@ Endpoint sketch (non-binding, finalised in the contract in Phase 3):
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /v1/manifest` | Available models, runs, tiers, steps, tile locations, run and update times |
-| `GET /v1/point?lat=&lon=` | Time series for both models at a location, using the best tier covering it |
+| `GET /v1/manifest` | Available sources, runs, tiers, steps, tile locations, run and update times |
+| `GET /v1/sources` | Enabled sources with native resolution, cadence, horizon, licence and attribution text |
+| `GET /v1/point?lat=&lon=` | Time series for each enabled source at a location, using the best tier covering it. Cacheable: lat/lon snapped to the grid cell |
 | `GET /v1/health` | Liveness and data freshness |
 
 ## 8. Frontend and experience design
 
-The frontend stack is decided in Phase 2. The experience principles below hold regardless.
+The frontend is **Angular** (Decided, ADR 0004). The map renderer and state approach are chosen in Phase 2. The experience principles below hold regardless.
 
 - **Progressive refinement.** On zoom or time change, show the nearest coarser data immediately and cross-fade to the finer tile when it arrives. The motion hides latency and signals loading honestly.
 - **Same idea in time.** Daily totals first, 3-hourly frames when the user scrubs in.
 - **Prefetch.** Fetch neighbouring tiles and the next few time frames around the user's viewport and play head. Geography informs browser prefetch, not server computation.
 - **Honest labelling.** Show the native resolution and model next to the map. Do not present upscaled data as detail.
+- **Compare mode.** Pick sources, then view side by side, as a difference map, or as overlaid point charts. Each layer names its source, run time and native resolution, and the overlapping horizon is stated.
 - **Distinct identity.** A deliberate visual language for rain, not a default weather-map look. Colour-blind-safe, reduced-motion aware.
 - **Always show data age and run time**, in IST.
 - Attribution to ECMWF is always visible.
@@ -219,19 +285,20 @@ Estimates from the cost discussion (prices checked 2026-11-06, re-verify before 
 
 **Guardrails (the rules that keep us there):**
 1. No per-request computation of tiles or maps.
-2. Long-lived cache headers on immutable data are mandatory and tested.
-3. Pack tiles into few large objects. Never write thousands of tiny files per run.
+2. Caching per section 6.3 is mandatory and tested: immutable keys, explicit `Cache-Control`, a Cache Rule, and a custom domain (never `r2.dev`).
+3. Pack tiles into a modest number of medium-size objects. Never write thousands of tiny files per run.
 4. No autoscaling services. Prefer fixed-price compute and free tiers.
 5. Egress is served by the CDN or object store with free egress, not by the VM.
 6. Billing alerts on every paid service from day one.
 7. Re-measure cost after each phase.
+8. Enable a source only after its licence and terms are checked, because we redistribute derived data.
 
 ## 11. Phases and exit criteria
 
 | Phase | Deliverable | Exit criteria |
 |---|---|---|
 | 1 | Project structure | Layout and rules reviewed. **Done.** |
-| 2 | Stack decisions | One ADR per stack decision with rejected alternatives. Hosting shape chosen. |
+| 2 | Stack decisions | Angular and Cloudflare already decided. Remaining: pipeline and API language and framework, map renderer, data and tile format, VM provider, source shortlist. One ADR each, with rejected alternatives. |
 | 3 | Pipeline + API | Real IFS and AIFS run processed end to end. Manifest published. Documented OpenAPI. Measured size, run time and cost replace section 5.4 estimates. |
 | 4 | Web UI | FR1-FR7 working on real data. NFR2, NFR3, NFR6 met. |
 | 5 | Optimise and scale | Cost target holds under a load test. Bottlenecks measured and addressed. |
@@ -247,6 +314,9 @@ Estimates from the cost discussion (prices checked 2026-11-06, re-verify before 
 | Pipeline slower than the run interval | Falls behind | Measure early, parallelise by tier |
 | Provider lock-in | Hard to move | Use S3-compatible storage API, keep storage behind a thin interface |
 | Attribution non-compliance | Licence breach | Build attribution into the UI from the first release |
+| A source's terms forbid redistribution | Legal exposure | Licence gate before enabling, licence field in the registry |
+| Cache not configured, or `r2.dev` used in production | Cost spike, rate limits, slow tiles | Custom domain, Cache Rule, automated header and hit tests |
+| Sources not comparable (grids, cadence, horizon differ) | Misleading comparisons | Common grid and time base, area-weighted resampling, show only the overlapping horizon, label native resolution |
 
 ## 13. Open questions and items to verify
 
@@ -254,11 +324,15 @@ Estimates from the cost discussion (prices checked 2026-11-06, re-verify before 
 2. Bytes per point after packing, and whole-pipeline run time (measure on a small VM).
 3. Whether download of single fields by byte range is fast enough for 4 runs/day.
 4. Exact attribution wording required by ECMWF.
-5. Hosting: default is S3-compatible object storage (Cloudflare R2 as first choice) with a CDN, plus one small VM. Provider-neutral interface kept. Owner to confirm.
+5. Hosting: Cloudflare R2 plus CDN on a custom domain is **decided**. A thin storage interface is kept so a move stays possible. Remaining: VM provider and location (Phase 2).
 6. Exact India and South Asia boxes (config, easy to change).
 7. Keep the previous run for the "what changed" view. Owner to confirm.
 8. Map renderer and frontend framework: Phase 2.
 9. Should uncertainty (probability products) enter v1.1?
+10. Which sources beyond IFS and AIFS does the owner want (GFS, ICON, others)? Terms and access must be verified for each.
+11. Are observations (satellite rainfall) in scope, to show which source was closer?
+12. Do byte-range reads of larger packed files cache well on Cloudflare? Phase 3 spike.
+13. Resampling method that preserves rainfall totals when putting sources on a common grid.
 
 ## 14. Decision log
 
@@ -266,15 +340,26 @@ Estimates from the cost discussion (prices checked 2026-11-06, re-verify before 
 |---|---|---|
 | 0001 | Monorepo with three apps and a contract package | Proposed (accepted by structure review) |
 | 0002 | Tiered resolution, time policy and retention | Accepted as baseline |
-| 0003 | Static-first delivery and cost guardrails | Accepted as baseline |
+| 0003 | Static-first delivery and cost guardrails (Cloudflare R2 + CDN chosen) | Accepted |
+| 0004 | Angular frontend | Decided by owner |
+| 0005 | Source-agnostic ingestion and comparison | Accepted as baseline |
+| 0006 | Caching strategy | Accepted as baseline |
 
 ## 15. Glossary
 
 - **IFS:** ECMWF's physics-based Integrated Forecasting System. HRES is its deterministic high-resolution run, ENS its 50-member ensemble.
 - **AIFS:** ECMWF's machine-learning forecast model.
-- **Run:** one model execution, identified by model and start time (00/06/12/18 UTC).
+- **Run:** one execution of a source's model, identified by source and start time.
 - **Step:** forecast lead time in hours from run start.
 - **tp:** total precipitation field.
 - **Tier:** a (resolution, time cadence, region) bundle in section 5.1.
 - **Tile:** a small spatial chunk of a field at one zoom level.
 - **Manifest:** the small mutable file that says which immutable run data is current.
+- **Source:** a forecast product we display, such as `ecmwf-ifs`.
+- **Access path:** where a source's files are fetched from (producer portal, cloud mirror).
+- **Canonical form:** the common internal representation every source is converted into.
+
+## 16. Changelog
+
+- **v0.2 (2026-11-06):** sources generalised beyond IFS and AIFS, source registry and adapters added, Angular recorded, caching expanded into its own section, Cloudflare confirmed, ADRs 0004-0006.
+- **v0.1 (2026-11-06):** baseline.
