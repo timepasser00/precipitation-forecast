@@ -25,4 +25,4 @@ a registry entry in `config/sources.yaml` plus, if its format differs, a new ada
 `make sample` writes `data/raw/sample/report.txt` listing the real GRIB keys and PASS/FAIL against
 the assumptions the decoder makes. Run it first on any new machine or after an ECMWF change.
 
-Needs the ecCodes library, installed as a wheel (`eccodeslib`; macOS 15+ on Apple silicon/Intel).
+Needs the ecCodes library, installed as a wheel (`eccodeslib`; macOS 15+ on Apple silicon/Intel). Python 3.12-3.14 only: `eccodeslib` has no 3.15 wheel yet, so the repo pins 3.12 in `.python-version`.
