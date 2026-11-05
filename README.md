@@ -6,7 +6,7 @@ A web app that turns ECMWF Open Data precipitation forecasts (IFS and AIFS) into
 
 | Phase | Scope | State |
 |---|---|---|
-| 1 | Project structure | **Ready for review** |
+| 1 | Project structure | **Done** |
 | 2 | Framework selection | Not started |
 | 3 | `git init` + backend API + docs | Not started |
 | 4 | Frontend UI | Not started |
@@ -27,4 +27,5 @@ data/              Local data (gitignored): raw/ GRIB2 downloads, processed/ der
 docs/              Architecture, structure rules, data-source notes, decision records
 ```
 
-Read `docs/STRUCTURE.md` first, then `docs/architecture.md`.
+Start with **`docs/DESIGN.md`**: the guiding document (goals, principles, tiers, cost guardrails, phases).
+Then `docs/STRUCTURE.md` (boundaries) and `docs/architecture.md` (data flow). Decisions are logged in `docs/decisions/`.
