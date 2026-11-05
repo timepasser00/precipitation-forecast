@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | v0.2 (multi-source, Angular, explicit caching) |
+| Status | v0.3 (Phase 2 stack decisions) |
 | Date | 2026-11-06 |
 | Owner | Atul Raj |
 | Audience | Primarily users in India |
@@ -53,7 +53,7 @@ A web app that turns ECMWF Open Data precipitation forecasts (IFS and AIFS) into
 4. **Failure isolation.** If the pipeline fails, the site keeps serving the last good forecast, clearly labelled with its age.
 5. **Forget the past, look ahead.** Keep the latest run and the previous run. No archive.
 6. **Honest precision.** The UI states the native resolution of what is shown and never presents upscaled data as detail.
-7. **Contract first.** The OpenAPI spec is written and reviewed before any endpoint is implemented.
+7. **Contract first.** API request and response models and the generated OpenAPI spec are reviewed before endpoint logic is written. The spec is a committed file, checked in CI for drift (ADR 0007).
 8. **Measure, then optimise.** Numbers in this document that are guesses are marked **Verify** and replaced with measurements in Phase 3.
 9. **Source-agnostic.** A source (what we show) is separate from an access path (where we fetch it). Both are configuration, and every source passes a licence check before it is enabled.
 
@@ -228,6 +228,24 @@ Rules:
 6. **Cold start after a publish.** The first users after a new run all miss, because the keys are new. Misses per run are roughly the number of distinct objects requested times the edge locations that request them (fewer with tiered caching). The pipeline may pre-warm India overview tiles after publishing (optional).
 7. **Measure.** Target hit ratio at or above 95% (NFR8). An automated check requests an object twice and asserts the second response is a cache hit (`cf-cache-status: HIT`) and carries the intended `Cache-Control`. Watch R2 operation counts after launch: they should track misses, not traffic.
 
+### 6.4 Technology stack (Phase 2 decisions)
+
+| Concern | Choice | ADR |
+|---|---|---|
+| Pipeline and API language | Python 3.12, managed with `uv` | 0007 |
+| GRIB fetch and decode | `ecmwf-opendata` client, `eccodes` + NumPy | 0007 |
+| API framework | FastAPI + Pydantic v2 on uvicorn | 0007 |
+| API contract and client | OpenAPI exported from FastAPI, committed, drift-checked in CI, typed Angular client generated from it | 0007 |
+| Data delivered to the browser | Value-encoded raster tiles, time-stacked (**Proposed**, Phase 3 spike) | 0008 |
+| Frontend | Angular 22, zoneless, standalone components, signals | 0004, 0009 |
+| Map | MapLibre GL JS with a custom WebGL precipitation layer | 0009 |
+| Storage and CDN | Cloudflare R2 + CDN on a custom domain | 0003, 0006 |
+| Compute | One small Hetzner VM in the EU | 0011 |
+| Scheduling | `systemd` timers running an idempotent CLI | 0011 |
+| Tooling and CI | `uv`, `npm`, `ruff`, `pytest`, Makefile, GitHub Actions (**Proposed**) | 0010 |
+
+Versions checked on 2026-11-06: Angular 22.2.4, MapLibre GL JS 6.16.0, FastAPI 0.162.0, eccodes 2.50.0, ecmwf-opendata 0.3.35.
+
 ## 7. API design
 
 Principles:
@@ -281,6 +299,8 @@ Estimates from the cost discussion (prices checked 2026-11-06, re-verify before 
 | About 10k daily visitors, caching works | about $7-10 |
 | About 10k daily visitors, caching broken | about $35-40 |
 
+Update: Hetzner's own page (2026-11-06) lists the default VM (CX23) at €5.99 per month excluding VAT and IPv4, slightly above the third-party figure used for the table, so the VM rows shift by about €0.50. Taxes and the IPv4 charge are unverified and could push the total toward the target.
+
 **Target (Proposed):** steady-state at or under $10 per month, with a billing alert at $15.
 
 **Guardrails (the rules that keep us there):**
@@ -298,7 +318,7 @@ Estimates from the cost discussion (prices checked 2026-11-06, re-verify before 
 | Phase | Deliverable | Exit criteria |
 |---|---|---|
 | 1 | Project structure | Layout and rules reviewed. **Done.** |
-| 2 | Stack decisions | Angular and Cloudflare already decided. Remaining: pipeline and API language and framework, map renderer, data and tile format, VM provider, source shortlist. One ADR each, with rejected alternatives. |
+| 2 | Stack decisions | One ADR per stack decision with rejected alternatives (ADRs 0004, 0007-0011). **Done, pending review.** |
 | 3 | Pipeline + API | Real IFS and AIFS run processed end to end. Manifest published. Documented OpenAPI. Measured size, run time and cost replace section 5.4 estimates. |
 | 4 | Web UI | FR1-FR7 working on real data. NFR2, NFR3, NFR6 met. |
 | 5 | Optimise and scale | Cost target holds under a load test. Bottlenecks measured and addressed. |
@@ -326,13 +346,18 @@ Estimates from the cost discussion (prices checked 2026-11-06, re-verify before 
 4. Exact attribution wording required by ECMWF.
 5. Hosting: Cloudflare R2 plus CDN on a custom domain is **decided**. A thin storage interface is kept so a move stays possible. Remaining: VM provider and location (Phase 2).
 6. Exact India and South Asia boxes (config, easy to change).
-7. Keep the previous run for the "what changed" view. Owner to confirm.
-8. Map renderer and frontend framework: Phase 2.
+7. Keep the previous run for the "what changed" view. **Default taken:** yes (cheap and reversible). Owner may veto.
+8. Map renderer: **decided** in Phase 2 (MapLibre GL JS with a custom WebGL layer, ADR 0009). Phase 4 spike for the globe.
 9. Should uncertainty (probability products) enter v1.1?
-10. Which sources beyond IFS and AIFS does the owner want (GFS, ICON, others)? Terms and access must be verified for each.
-11. Are observations (satellite rainfall) in scope, to show which source was closer?
+10. Sources beyond IFS and AIFS. **Default taken:** v1 enables `ecmwf-ifs` and `ecmwf-aifs`; `noaa-gfs` is the first candidate, to be verified in the Phase 3 spike; others later. Owner may change.
+11. Observations (satellite rainfall) to show which source was closer. **Default taken:** deferred past v1. Owner may change.
 12. Do byte-range reads of larger packed files cache well on Cloudflare? Phase 3 spike.
 13. Resampling method that preserves rainfall totals when putting sources on a common grid.
+14. Tile and atlas format: quantisation, object sizes, decode speed, cache behaviour (ADR 0008 spike, Phase 3).
+15. Basemap source and style (Phase 4 design).
+16. Hetzner price, stock, VAT and IPv4 charge at order time (ADR 0011).
+17. Deployment method: containers vs plain systemd (Phase 3).
+18. Whether the repo will be hosted on GitHub (affects CI, ADR 0010).
 
 ## 14. Decision log
 
@@ -344,6 +369,11 @@ Estimates from the cost discussion (prices checked 2026-11-06, re-verify before 
 | 0004 | Angular frontend | Decided by owner |
 | 0005 | Source-agnostic ingestion and comparison | Accepted as baseline |
 | 0006 | Caching strategy | Accepted as baseline |
+| 0007 | Python for pipeline and API (FastAPI, eccodes) | Accepted |
+| 0008 | Tile and data format | Proposed, Phase 3 spike |
+| 0009 | Map renderer: MapLibre GL JS + custom WebGL layer | Accepted, Phase 4 globe spike |
+| 0010 | Tooling, conventions, CI | Accepted as baseline |
+| 0011 | Compute, hosting, scheduling | Accepted as baseline |
 
 ## 15. Glossary
 
@@ -361,5 +391,6 @@ Estimates from the cost discussion (prices checked 2026-11-06, re-verify before 
 
 ## 16. Changelog
 
+- **v0.3 (2026-11-06):** Phase 2 stack decisions (ADRs 0007-0011), technology stack table (6.4), defaults taken for open questions 7, 10, 11, Hetzner price update.
 - **v0.2 (2026-11-06):** sources generalised beyond IFS and AIFS, source registry and adapters added, Angular recorded, caching expanded into its own section, Cloudflare confirmed, ADRs 0004-0006.
 - **v0.1 (2026-11-06):** baseline.

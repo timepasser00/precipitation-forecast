@@ -7,7 +7,7 @@ A web app that turns ECMWF Open Data precipitation forecasts (IFS and AIFS) into
 | Phase | Scope | State |
 |---|---|---|
 | 1 | Project structure | **Done** |
-| 2 | Framework selection | In progress (Angular chosen) |
+| 2 | Framework selection | **Done, pending review** (ADRs 0004, 0007-0011) |
 | 3 | `git init` + backend API + docs | Not started |
 | 4 | Frontend UI | Not started |
 | 5 | Optimization and scaling | Not started |

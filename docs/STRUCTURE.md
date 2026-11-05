@@ -15,7 +15,7 @@ The system has three jobs with very different shapes. Each gets its own top-leve
 1. `web` talks to `api` over HTTP only, using types derived from `packages/api-contract`.
 2. `api` never imports pipeline code. `pipeline` never imports api code.
 3. `pipeline` and `api` meet at one place: the **processed data format** in `data/processed/` (later object storage). That format is documented in `docs/data-format.md` (written in Phase 3) and is the only coupling between them.
-4. Anything shared between apps lives in `packages/`. If two apps need the same code, it moves there. No reaching across `apps/*` directories.
+4. Anything shared between apps lives in `packages/`. If two apps need the same code, it moves there. No reaching across `apps/*` directories. The first shared package, created in Phase 3, is `packages/precip-core` (Python): source registry models and the tile codec used by both pipeline and api.
 5. `data/` is never committed. Only the `.gitkeep` placeholders are.
 
 ## Where things go
