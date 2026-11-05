@@ -1,0 +1,27 @@
+# Data
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+*.grib
+*.grib2
+*.grb2
+*.idx
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Env and secrets
+.env
+.env.*
+!.env.example
+
+# Language build artifacts (stack-specific rules added in Phase 2)
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+dist/
+build/
