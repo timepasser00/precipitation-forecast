@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | v0.3 (Phase 2 stack decisions) |
+| Status | v0.4 (Phase 3 built; ready for review) |
 | Date | 2026-11-06 |
 | Owner | Atul Raj |
 | Audience | Primarily users in India |
@@ -104,17 +104,17 @@ Why days 8-15 are daily totals: detail that far out is mostly noise, so coarse a
 ### 5.2 Derived product
 
 - The pipeline converts ECMWF total precipitation into per-interval precipitation in millimetres, on a UTC time axis.
-- **Verify:** the exact `tp` definition, units and accumulation convention for IFS and for AIFS. I expect accumulation since forecast start in metres, but this has not been confirmed for this design.
-- Values are quantised into a compact integer encoding (scheme decided in Phase 3 after measuring accuracy against file size).
+- **Verify:** the exact `tp` definition, units and accumulation convention for IFS and for AIFS. The pipeline assumes accumulation since forecast start, in metres, and is built to fail loudly otherwise (strict GRIB decoding, `ConventionError`). `make sample` checks this against real files; it has not yet been run on real data.
+- Values are quantised to one byte per value, log-spaced (log8, at most 2.2% relative error). Decided in ADR 0008; format in `docs/data-format.md`.
 
 ### 5.3 Retention (**Decided**)
 
 - Keep the latest run and the previous run per model. Delete older.
 - Raw GRIB is deleted after processing. ECMWF's 12-run window is the safety net for re-processing.
 
-### 5.4 Size estimate (**Verify**)
+### 5.4 Size (measured on synthetic data, Phase 3)
 
-Assuming 0.5-1 byte per grid point after packing: about 17-34 MB per run for all tiers, so about 35-70 MB for the two kept runs. Real numbers come from Phase 3. Each additional source adds a similar amount again (tier sizes differ), so storage stays small; pipeline run time grows faster than storage.
+One run, production tiers: IFS 16.2 MB (t0 10.3, t1 1.5, t2 4.3), AIFS 10.5 MB (t0 9.6, t1 1.0), total **26.8 MB**; two kept runs about 54 MB. These are lower bounds (synthetic fields are smoother than real ones) and were taken before the point cube moved to a smaller layout. Pipeline for both sources: 30 s wall, 525 MB peak memory, excluding real download time. Re-measure on real data (ADR 0008). Each extra source adds a similar amount, so storage stays small; pipeline time grows faster than storage.
 
 ### 5.5 Sources and access paths
 
@@ -253,14 +253,18 @@ Principles:
 - Tiles are **not** served through the API. The client reads them from the CDN using paths given in the manifest.
 - Consistent error format, input validation, and basic rate limiting.
 
-Endpoint sketch (non-binding, finalised in the contract in Phase 3):
+Endpoints as built (details in `docs/api.md`, contract in `packages/api-contract/openapi.json`):
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /v1/manifest` | Available sources, runs, tiers, steps, tile locations, run and update times |
-| `GET /v1/sources` | Enabled sources with native resolution, cadence, horizon, licence and attribution text |
-| `GET /v1/point?lat=&lon=` | Time series for each enabled source at a location, using the best tier covering it. Cacheable: lat/lon snapped to the grid cell |
-| `GET /v1/health` | Liveness and data freshness |
+| `GET /healthz` | Liveness and whether data is published |
+| `GET /v1/config` | Data host location for clients |
+| `GET /v1/manifest` | Sources, runs, tiers, frames, tile locations |
+| `GET /v1/sources` | Sources with latest run, tiers, licence attribution |
+| `GET /v1/point?lat=&lon=&source=` | Series at a location from the finest tier covering it |
+| `GET /v1/compare?lat=&lon=&sources=` | Same location across sources, failures isolated |
+
+Differences from the sketch: no `/v1/health` (it is `/healthz`); points are not snapped to grid cells (the answer is interpolated, and caching relies on the CDN and `run` pinning); rate limiting is deferred to Phase 5.
 
 ## 8. Frontend and experience design
 
@@ -319,7 +323,7 @@ Update: Hetzner's own page (2026-11-06) lists the default VM (CX23) at €5.99 p
 |---|---|---|
 | 1 | Project structure | Layout and rules reviewed. **Done.** |
 | 2 | Stack decisions | One ADR per stack decision with rejected alternatives (ADRs 0004, 0007-0011). **Done, pending review.** |
-| 3 | Pipeline + API | Real IFS and AIFS run processed end to end. Manifest published. Documented OpenAPI. Measured size, run time and cost replace section 5.4 estimates. |
+| 3 | Pipeline + API | Pipeline and API built and tested end to end on synthetic data (91 tests, CI, OpenAPI contract). **Open: one run of real IFS and AIFS data** (needs a networked machine; `make sample`). **Built, pending review.** |
 | 4 | Web UI | FR1-FR7 working on real data. NFR2, NFR3, NFR6 met. |
 | 5 | Optimise and scale | Cost target holds under a load test. Bottlenecks measured and addressed. |
 
@@ -353,11 +357,11 @@ Update: Hetzner's own page (2026-11-06) lists the default VM (CX23) at €5.99 p
 11. Observations (satellite rainfall) to show which source was closer. **Default taken:** deferred past v1. Owner may change.
 12. Do byte-range reads of larger packed files cache well on Cloudflare? Phase 3 spike.
 13. Resampling method that preserves rainfall totals when putting sources on a common grid.
-14. Tile and atlas format: quantisation, object sizes, decode speed, cache behaviour (ADR 0008 spike, Phase 3).
+14. Tile and atlas format: **accepted provisionally** on synthetic data (ADR 0008). Remaining: real-data sizes, phone decode speed, Cloudflare cache behaviour.
 15. Basemap source and style (Phase 4 design).
 16. Hetzner price, stock, VAT and IPv4 charge at order time (ADR 0011).
-17. Deployment method: containers vs plain systemd (Phase 3).
-18. Whether the repo will be hosted on GitHub (affects CI, ADR 0010).
+17. Deployment method: plain systemd timers with an idempotent CLI (ADR 0011); containers only if needed later.
+18. ~~Whether the repo will be hosted on GitHub~~ **Decided:** yes; GitHub Actions CI is in `.github/workflows/ci.yml`.
 
 ## 14. Decision log
 
@@ -370,7 +374,7 @@ Update: Hetzner's own page (2026-11-06) lists the default VM (CX23) at €5.99 p
 | 0005 | Source-agnostic ingestion and comparison | Accepted as baseline |
 | 0006 | Caching strategy | Accepted as baseline |
 | 0007 | Python for pipeline and API (FastAPI, eccodes) | Accepted |
-| 0008 | Tile and data format | Proposed, Phase 3 spike |
+| 0008 | Tile and data format (log8 PNG atlases, separate point cube) | Accepted, provisional (synthetic data) |
 | 0009 | Map renderer: MapLibre GL JS + custom WebGL layer | Accepted, Phase 4 globe spike |
 | 0010 | Tooling, conventions, CI | Accepted as baseline |
 | 0011 | Compute, hosting, scheduling | Accepted as baseline |
@@ -391,6 +395,7 @@ Update: Hetzner's own page (2026-11-06) lists the default VM (CX23) at €5.99 p
 
 ## 16. Changelog
 
+- **v0.4 (2026-11-06):** Phase 3 built: pipeline, API, shared core, CI, OpenAPI contract. ADR 0008 accepted provisionally with measured sizes; 5.4 and section 7 updated to what was built; open questions 14, 17, 18 updated.
 - **v0.3 (2026-11-06):** Phase 2 stack decisions (ADRs 0007-0011), technology stack table (6.4), defaults taken for open questions 7, 10, 11, Hetzner price update.
 - **v0.2 (2026-11-06):** sources generalised beyond IFS and AIFS, source registry and adapters added, Angular recorded, caching expanded into its own section, Cloudflare confirmed, ADRs 0004-0006.
 - **v0.1 (2026-11-06):** baseline.
