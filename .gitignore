@@ -25,3 +25,7 @@ __pycache__/
 .venv/
 dist/
 build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.sync/

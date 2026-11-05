@@ -1,0 +1,52 @@
+[project]
+name = "precipitation-forecast"
+version = "0.0.0"
+description = "Workspace root for the Python parts of the precipitation forecast monorepo."
+requires-python = ">=3.12"
+dependencies = ["precip-core", "pf-pipeline", "pf-api"]
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "ruff>=0.6",
+  "mypy>=1.10",
+  "httpx>=0.27",
+  "moto[s3]>=5",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/precip-core", "apps/pipeline", "apps/api"]
+
+[tool.uv.sources]
+precip-core = { workspace = true }
+pf-pipeline = { workspace = true }
+pf-api = { workspace = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["RUF012"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["precip_core", "pf_pipeline", "pf_api"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["E501"]
+"**/tests/*" = ["E501", "SIM115"]
+
+[tool.pytest.ini_options]
+testpaths = ["packages/precip-core/tests", "apps/pipeline/tests", "apps/api/tests"]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning:starlette.*", "ignore::starlette.exceptions.StarletteDeprecationWarning","ignore::DeprecationWarning:moto.*", "ignore::DeprecationWarning:botocore.*"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true

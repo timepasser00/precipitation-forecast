@@ -1,0 +1,97 @@
+# Source and tier registry. Everything region- or source-specific lives here, not in code.
+# See docs/DESIGN.md sections 5.1 (tiers) and 5.5 (sources and access paths).
+version: 1
+
+# Value encoding for tiles and cubes (docs/data-format.md).
+encoding:
+  v0: 0.02      # mm; anything below is stored as exactly zero
+  vmax: 1000.0  # mm; top of the scale
+
+tile:
+  size: 256
+  frames_per_chunk: 8   # time steps per tile object
+  atlas_cols: 4
+
+retention:
+  keep_runs: 2          # latest + previous, per source
+
+sources:
+  - id: ecmwf-ifs
+    name: ECMWF IFS (HRES)
+    provider: ECMWF
+    kind: physics
+    description: Deterministic high-resolution forecast from ECMWF's Integrated Forecasting System.
+    enabled: true
+    adapter: ecmwf
+    adapter_options: {model: ifs, stream: oper, type: fc}
+    access_paths: [ecmwf, aws, google, azure]   # ordered; first that works wins
+    resolutions: ["0p25", "0p1"]
+    step_schedules:
+      - {hours: [0, 12], ranges: [[0, 144, 3], [150, 360, 6]]}
+      - {hours: [6, 18], ranges: [[0, 90, 3]]}
+    horizon_h: 360
+    license:
+      name: CC-BY-4.0
+      url: https://creativecommons.org/licenses/by/4.0/
+      # Wording is a placeholder until checked against ECMWF's terms (DESIGN open item 4).
+      attribution: "Contains modified ECMWF Open Data (CC BY 4.0). Source: ecmwf.int"
+      attribution_verified: false
+
+  - id: ecmwf-aifs
+    name: ECMWF AIFS (Single)
+    provider: ECMWF
+    kind: ml
+    description: Machine-learning deterministic forecast from ECMWF's Artificial Intelligence Forecasting System.
+    enabled: true
+    adapter: ecmwf
+    adapter_options: {model: aifs-single, stream: oper, type: fc}
+    access_paths: [ecmwf, aws, google, azure]
+    resolutions: ["0p25"]
+    step_schedules:
+      - {hours: [0, 6, 12, 18], ranges: [[0, 360, 6]]}
+    horizon_h: 360
+    license:
+      name: CC-BY-4.0
+      url: https://creativecommons.org/licenses/by/4.0/
+      attribution: "Contains modified ECMWF Open Data (CC BY 4.0). Source: ecmwf.int"
+      attribution_verified: false
+
+# Tiers: where and how finely each source is rendered (DESIGN section 5.1).
+# Tile zoom bands do not overlap: zoom 0-2 from t0, zoom 3 from t1, zoom 4 from t2.
+tiers:
+  - id: t0-global
+    name: Global overview
+    source_resolution: "0p25"
+    resolution_deg: 0.5
+    bbox: [-180, -90, 180, 90]
+    zoom_min: 0
+    zoom_max: 2
+    fine_step_h: 6
+    fine_until_h: 168
+    daily_until_h: 360
+    required: true
+
+  - id: t1-south-asia
+    name: South Asia
+    source_resolution: "0p25"
+    resolution_deg: 0.25
+    bbox: [60, 5, 100, 40]
+    zoom_min: 3
+    zoom_max: 3
+    fine_step_h: 3
+    fine_until_h: 168
+    daily_until_h: 360
+    required: true
+
+  - id: t2-india
+    name: India (high resolution)
+    source_resolution: "0p1"
+    resolution_deg: 0.1
+    bbox: [67, 6, 98, 38]
+    zoom_min: 4
+    zoom_max: 4
+    fine_step_h: 3
+    fine_until_h: 144
+    daily_until_h: 144    # no daily totals: detail only, to day 6
+    required: false       # arrives about 2 h later than the 0.25 degree data
+    sources: [ecmwf-ifs]
