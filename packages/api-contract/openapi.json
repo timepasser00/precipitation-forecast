@@ -1,0 +1,1136 @@
+{
+  "components": {
+    "schemas": {
+      "ClientConfig": {
+        "properties": {
+          "api_version": {
+            "default": "v1",
+            "title": "Api Version",
+            "type": "string"
+          },
+          "data_base_url": {
+            "description": "Prefix for every tile and cube path in the manifest.",
+            "title": "Data Base Url",
+            "type": "string"
+          },
+          "manifest_url": {
+            "description": "URL of manifest.json on the data host.",
+            "title": "Manifest Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "data_base_url",
+          "manifest_url"
+        ],
+        "title": "ClientConfig",
+        "type": "object"
+      },
+      "Comparison": {
+        "properties": {
+          "errors": {
+            "description": "Sources that could not answer; the others are still returned.",
+            "items": {
+              "$ref": "#/components/schemas/SourceError"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/PointForecast"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "lat",
+          "lon",
+          "results",
+          "errors"
+        ],
+        "title": "Comparison",
+        "type": "object"
+      },
+      "Encoding": {
+        "properties": {
+          "first_level": {
+            "default": 1,
+            "title": "First Level",
+            "type": "integer"
+          },
+          "kind": {
+            "const": "log8",
+            "default": "log8",
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_level": {
+            "default": 254,
+            "title": "Last Level",
+            "type": "integer"
+          },
+          "nodata": {
+            "default": 255,
+            "title": "Nodata",
+            "type": "integer"
+          },
+          "units": {
+            "const": "mm",
+            "default": "mm",
+            "title": "Units",
+            "type": "string"
+          },
+          "v0": {
+            "default": 0.02,
+            "title": "V0",
+            "type": "number"
+          },
+          "vmax": {
+            "default": 1000.0,
+            "title": "Vmax",
+            "type": "number"
+          },
+          "zero": {
+            "default": 0,
+            "title": "Zero",
+            "type": "integer"
+          }
+        },
+        "title": "Encoding",
+        "type": "object"
+      },
+      "Frame": {
+        "properties": {
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "end_h": {
+            "title": "End H",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "interval",
+              "daily"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          },
+          "start_h": {
+            "title": "Start H",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "start_h",
+          "end_h",
+          "kind"
+        ],
+        "title": "Frame",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Health": {
+        "properties": {
+          "has_data": {
+            "description": "True once at least one run has been published.",
+            "title": "Has Data",
+            "type": "boolean"
+          },
+          "status": {
+            "const": "ok",
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "has_data"
+        ],
+        "title": "Health",
+        "type": "object"
+      },
+      "Manifest": {
+        "properties": {
+          "encoding": {
+            "$ref": "#/components/schemas/Encoding",
+            "default": {
+              "first_level": 1,
+              "kind": "log8",
+              "last_level": 254,
+              "nodata": 255,
+              "units": "mm",
+              "v0": 0.02,
+              "vmax": 1000.0,
+              "zero": 0
+            }
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "sources": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SourceEntry"
+            },
+            "default": {},
+            "title": "Sources",
+            "type": "object"
+          },
+          "tile": {
+            "$ref": "#/components/schemas/TileConfig",
+            "default": {
+              "atlas_cols": 4,
+              "crs": "web-mercator",
+              "frames_per_chunk": 8,
+              "size": 256
+            }
+          }
+        },
+        "required": [
+          "generated_at"
+        ],
+        "title": "Manifest",
+        "type": "object"
+      },
+      "PointForecast": {
+        "properties": {
+          "attribution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attribution"
+          },
+          "frames": {
+            "items": {
+              "$ref": "#/components/schemas/PointFrame"
+            },
+            "title": "Frames",
+            "type": "array"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "resolution_deg": {
+            "title": "Resolution Deg",
+            "type": "number"
+          },
+          "run": {
+            "title": "Run",
+            "type": "string"
+          },
+          "run_time": {
+            "format": "date-time",
+            "title": "Run Time",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "synthetic": {
+            "title": "Synthetic",
+            "type": "boolean"
+          },
+          "tier": {
+            "title": "Tier",
+            "type": "string"
+          },
+          "totals_mm": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Accumulated rainfall by horizon, e.g. '24h', '72h', '168h'. Only horizons fully covered by the available frames are present.",
+            "title": "Totals Mm",
+            "type": "object"
+          },
+          "units": {
+            "const": "mm",
+            "default": "mm",
+            "title": "Units",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "run",
+          "run_time",
+          "tier",
+          "resolution_deg",
+          "lat",
+          "lon",
+          "synthetic",
+          "frames",
+          "totals_mm"
+        ],
+        "title": "PointForecast",
+        "type": "object"
+      },
+      "PointFrame": {
+        "properties": {
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "interval",
+              "daily"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Rainfall over [start, end) in mm; null if no data.",
+            "title": "Mm"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "kind",
+          "mm"
+        ],
+        "title": "PointFrame",
+        "type": "object"
+      },
+      "Problem": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "Problem",
+        "type": "object"
+      },
+      "RunEntry": {
+        "properties": {
+          "published_at": {
+            "format": "date-time",
+            "title": "Published At",
+            "type": "string"
+          },
+          "run_time": {
+            "format": "date-time",
+            "title": "Run Time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "partial",
+              "complete"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "synthetic": {
+            "default": false,
+            "title": "Synthetic",
+            "type": "boolean"
+          },
+          "tiers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/TierEntry"
+            },
+            "default": {},
+            "title": "Tiers",
+            "type": "object"
+          }
+        },
+        "required": [
+          "run_time",
+          "status",
+          "published_at"
+        ],
+        "title": "RunEntry",
+        "type": "object"
+      },
+      "SourceEntry": {
+        "properties": {
+          "latest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous"
+          },
+          "runs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RunEntry"
+            },
+            "default": {},
+            "title": "Runs",
+            "type": "object"
+          }
+        },
+        "title": "SourceEntry",
+        "type": "object"
+      },
+      "SourceError": {
+        "properties": {
+          "error": {
+            "title": "Error",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "error"
+        ],
+        "title": "SourceError",
+        "type": "object"
+      },
+      "SourceInfo": {
+        "properties": {
+          "attribution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attribution"
+          },
+          "attribution_verified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attribution Verified"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "physics",
+                  "ml"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "latest_run": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Run id, YYYYMMDDHH (UTC).",
+            "title": "Latest Run"
+          },
+          "latest_run_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Run Time"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "previous_run": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Run"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "synthetic": {
+            "default": false,
+            "title": "Synthetic",
+            "type": "boolean"
+          },
+          "tiers": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Tiers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "SourceInfo",
+        "type": "object"
+      },
+      "TierEntry": {
+        "properties": {
+          "bbox": {
+            "maxItems": 4,
+            "minItems": 4,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Bbox",
+            "type": "array"
+          },
+          "bytes": {
+            "default": 0,
+            "title": "Bytes",
+            "type": "integer"
+          },
+          "chunks": {
+            "title": "Chunks",
+            "type": "integer"
+          },
+          "cube_path": {
+            "title": "Cube Path",
+            "type": "string"
+          },
+          "frames": {
+            "items": {
+              "$ref": "#/components/schemas/Frame"
+            },
+            "title": "Frames",
+            "type": "array"
+          },
+          "grid": {
+            "additionalProperties": true,
+            "title": "Grid",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "resolution_deg": {
+            "title": "Resolution Deg",
+            "type": "number"
+          },
+          "tile_path": {
+            "description": "Template with {z}, {x}, {y}, {chunk}.",
+            "title": "Tile Path",
+            "type": "string"
+          },
+          "tiles": {
+            "additionalProperties": {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "description": "Tile coordinates that exist, keyed by zoom level.",
+            "title": "Tiles",
+            "type": "object"
+          },
+          "zoom_max": {
+            "title": "Zoom Max",
+            "type": "integer"
+          },
+          "zoom_min": {
+            "title": "Zoom Min",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "resolution_deg",
+          "bbox",
+          "zoom_min",
+          "zoom_max",
+          "grid",
+          "frames",
+          "chunks",
+          "tiles",
+          "tile_path",
+          "cube_path"
+        ],
+        "title": "TierEntry",
+        "type": "object"
+      },
+      "TileConfig": {
+        "properties": {
+          "atlas_cols": {
+            "default": 4,
+            "title": "Atlas Cols",
+            "type": "integer"
+          },
+          "crs": {
+            "const": "web-mercator",
+            "default": "web-mercator",
+            "title": "Crs",
+            "type": "string"
+          },
+          "frames_per_chunk": {
+            "default": 8,
+            "title": "Frames Per Chunk",
+            "type": "integer"
+          },
+          "size": {
+            "default": 256,
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "title": "TileConfig",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "\nRead-only API over processed ECMWF open-data precipitation forecasts.\n\n**How it fits together.** A pipeline publishes immutable run data (map tiles and point cubes)\nplus a small `manifest.json` to object storage. Map clients read the manifest and fetch tiles\nstraight from the CDN; this API answers the questions a browser should not have to compute:\npoint forecasts and cross-source comparisons.\n\n**Caching.** Responses for a pinned `run` are immutable and cached for a year. Responses that\nfollow `latest` are cached for 60 seconds.\n\n**Units and time.** Rainfall is in millimetres over each frame's `[start, end)` window.\nAll timestamps are UTC (ISO 8601).\n",
+    "title": "Precipitation Forecast API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/data/{path}": {
+      "get": {
+        "operationId": "data_data__path__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Raw object (dev only)",
+        "tags": [
+          "data"
+        ]
+      }
+    },
+    "/healthz": {
+      "get": {
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Liveness and data check",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/v1/compare": {
+      "get": {
+        "description": "Latest run of each source at one location. A source that fails is reported in\n`errors` and does not hide the others.",
+        "operationId": "compare_v1_compare_get",
+        "parameters": [
+          {
+            "description": "Latitude, degrees north.",
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "description": "Latitude, degrees north.",
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Longitude, degrees east.",
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "description": "Longitude, degrees east.",
+              "maximum": 360,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Comma-separated source ids; default all published.",
+            "in": "query",
+            "name": "sources",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated source ids; default all published.",
+              "title": "Sources"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Comparison"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Same location, several sources",
+        "tags": [
+          "forecast"
+        ]
+      }
+    },
+    "/v1/config": {
+      "get": {
+        "operationId": "client_config_v1_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Client bootstrap",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/v1/manifest": {
+      "get": {
+        "description": "The same document map clients read from the CDN, for convenience and debugging.",
+        "operationId": "get_manifest_v1_manifest_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Manifest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Published data",
+        "tags": [
+          "forecast"
+        ]
+      }
+    },
+    "/v1/point": {
+      "get": {
+        "description": "Rainfall per frame (3-hourly to 24-hourly, depending on tier and lead time) at a\nlocation, bilinearly interpolated from the finest published grid that covers it.",
+        "operationId": "point_v1_point_get",
+        "parameters": [
+          {
+            "description": "Latitude, degrees north.",
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "description": "Latitude, degrees north.",
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Longitude, degrees east.",
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "description": "Longitude, degrees east.",
+              "maximum": 360,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Source id, e.g. ecmwf-ifs.",
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "default": "ecmwf-ifs",
+              "description": "Source id, e.g. ecmwf-ifs.",
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Run id; default latest.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{10}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Run id; default latest.",
+              "title": "Run"
+            }
+          },
+          {
+            "description": "Force a tier; default the finest covering the point.",
+            "in": "query",
+            "name": "tier",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Force a tier; default the finest covering the point.",
+              "title": "Tier"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PointForecast"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Forecast at one location",
+        "tags": [
+          "forecast"
+        ]
+      }
+    },
+    "/v1/sources": {
+      "get": {
+        "operationId": "list_sources_v1_sources_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourceInfo"
+                  },
+                  "title": "Response List Sources V1 Sources Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sources",
+        "tags": [
+          "forecast"
+        ]
+      }
+    }
+  },
+  "tags": [
+    {
+      "description": "Health and client configuration.",
+      "name": "meta"
+    },
+    {
+      "description": "Sources, manifest and point forecasts.",
+      "name": "forecast"
+    },
+    {
+      "description": "Raw tile/cube objects (development only).",
+      "name": "data"
+    }
+  ]
+}

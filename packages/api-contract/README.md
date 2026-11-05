@@ -1,3 +1,5 @@
 # packages/api-contract
 
-OpenAPI spec for the API. Single source of truth for api and web. Written first in Phase 3, before endpoints are implemented.
+`openapi.json` is the contract between `apps/api` and `apps/web`. It is **generated** from the
+FastAPI app (`make openapi`), committed, and checked in CI so it cannot drift. The Angular client
+is generated from it in Phase 4. Do not edit it by hand.

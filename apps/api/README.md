@@ -1,8 +1,18 @@
 # apps/api
 
-Serves processed forecast data over HTTP. Documented via the OpenAPI spec in `packages/api-contract`.
+FastAPI service. Read-only. Point forecasts and source comparison on top of what the pipeline
+published; tiles go straight from the CDN to the browser.
 
-Owns: endpoints, validation, caching, auth/rate-limiting if needed.
-Does not own: downloading or decoding GRIB files. Reads the processed store only.
+```
+make synth && make api      # http://localhost:8000/docs
+```
 
-Stack: decided in Phase 2.
+Endpoints, errors, caching and configuration: [`docs/api.md`](../../docs/api.md).
+The contract is [`packages/api-contract/openapi.json`](../../packages/api-contract/openapi.json);
+after changing any route or model run `make openapi` (CI fails on drift).
+
+Layout: `app.py` routes, `models.py` response models, `state.py` manifest cache + cube LRU,
+`sampling.py` bilinear point sampling, `settings.py` environment config.
+
+The API never imports pipeline code. It shares only `packages/precip-core` (codec, manifest,
+storage, registry).
