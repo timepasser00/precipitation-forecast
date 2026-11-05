@@ -9,7 +9,7 @@ Production is paid from personal funds. The main cost risks are egress, per-requ
 - Pipeline pre-builds all data. Serving is file reads from object storage behind a CDN.
 - Immutable versioned paths with long cache lifetimes. One small mutable manifest with a short lifetime.
 - The API is thin and read-only. Tiles do not pass through it.
-- Pack tiles into few large objects.
+- Pack tiles into a modest number of medium-size objects (see ADR 0006 for why not very large packs).
 - No autoscaling services. Billing alerts from day one.
 - Target steady-state at or under $10 per month, alert at $15 (proposed).
 - Storage accessed through an S3-compatible interface to keep provider choice open. Cloudflare R2 with a custom domain is chosen (owner confirmed 2026-11-06). Egress is free. The `r2.dev` URL is development-only (rate-limited, no caching).
