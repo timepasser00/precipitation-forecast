@@ -159,10 +159,12 @@ def run_source(
         log.info("%s %s %s: fetching %d steps", spec.id, rid, resolution, len(fetch))
 
         acc: dict[str, dict[int, np.ndarray]] = {t.id: {} for t in group}
+        noise: dict[int, float] = {}
         grids = {}
         for field in adapter.iter_fields(run_time, resolution, fetch):
             if field.meta.get("missing_fraction", 0) > 0.01:
                 raise PipelineError(f"step {field.step}: more than 1% missing values")
+            noise[field.step] = float(field.meta.get("packing_step_mm", 0.0))
             for t in group:
                 if field.step in need[t.id]:
                     acc[t.id][field.step], grids[t.id] = to_tier_grid(field, t, expected)
@@ -173,7 +175,7 @@ def run_source(
             if missing:
                 raise PipelineError(f"{spec.id}/{t.id}: missing steps {sorted(missing)}")
             t1 = time.monotonic()
-            frames_mm, quality = windows_to_mm(acc[t.id], plans[t.id])
+            frames_mm, quality = windows_to_mm(acc[t.id], plans[t.id], noise)
             art = build_tier(t, grids[t.id], frames_mm, reg.tile, reg.encoding)
             _upload(storage, f"runs/{spec.id}/{rid}/{t.id}", art, workers)
             removed = _register_tier(

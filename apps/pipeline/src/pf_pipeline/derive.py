@@ -14,7 +14,7 @@ import numpy as np
 
 from .fields import PipelineError
 
-NEGATIVE_TOLERANCE_MM = 0.05  # packing noise below this is clipped silently
+NEGATIVE_TOLERANCE_MM = 0.05  # floor for packing noise that is clipped silently
 NEGATIVE_FRACTION_LIMIT = 0.005  # more negative cells than this means the convention is wrong
 
 
@@ -62,9 +62,18 @@ def required_steps(windows: list[FrameWindow]) -> set[int]:
 
 
 def windows_to_mm(
-    acc_m: dict[int, np.ndarray], windows: list[FrameWindow]
+    acc_m: dict[int, np.ndarray],
+    windows: list[FrameWindow],
+    packing_step_mm: dict[int, float] | None = None,
 ) -> tuple[np.ndarray, Quality]:
-    """Accumulations (metres, by step) to per-window rainfall in mm, shape (frames, ny, nx)."""
+    """Accumulations (metres, by step) to per-window rainfall in mm, shape (frames, ny, nx).
+
+    ``packing_step_mm`` gives each step's GRIB packing resolution. Real files are lossy: a field
+    with a 459 mm maximum packed to 12 bits moves in steps of 0.11 mm, so subtracting two of
+    them can legitimately give small negative values on dry cells. A window therefore tolerates
+    decreases up to the sum of its two packing steps (never less than the fixed floor).
+    A wrong convention (for example per-interval values) produces far larger decreases.
+    """
     if not windows:
         raise PipelineError("no frame windows could be planned (steps missing?)")
     shape = next(iter(acc_m.values())).shape
@@ -74,7 +83,10 @@ def windows_to_mm(
     for i, w in enumerate(windows):
         start = acc_m[w.start_h] if w.start_h > 0 else zero
         d = (acc_m[w.end_h] - start) * np.float32(1000.0)
-        worst_neg = max(worst_neg, float((d < -NEGATIVE_TOLERANCE_MM).mean()))
+        tol = NEGATIVE_TOLERANCE_MM
+        if packing_step_mm:
+            tol = max(tol, packing_step_mm.get(w.start_h, 0.0) + packing_step_mm.get(w.end_h, 0.0))
+        worst_neg = max(worst_neg, float((d < -tol).mean()))
         out[i] = np.maximum(d, 0.0)
     if worst_neg > NEGATIVE_FRACTION_LIMIT:
         raise ConventionError(

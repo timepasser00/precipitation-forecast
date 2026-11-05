@@ -4,6 +4,8 @@ Usage (from the repo root):
 
     uv run python scripts/spike_tile_format.py                      # synthetic data, no network
     uv run python scripts/spike_tile_format.py --real --access aws  # real ECMWF data (needs network)
+    uv run python scripts/spike_tile_format.py --grib data/raw/sample/ifs_0p25_tp.grib2
+        # real fields from a local file (e.g. from `make sample`); only tiers at that resolution
 
 It prints a markdown report. Synthetic fields compress differently from real ones, so rerun
 with --real before trusting the sizes.
@@ -24,6 +26,7 @@ from PIL import Image
 from pf_pipeline.adapters import make_adapter
 from pf_pipeline.build import build_tier
 from pf_pipeline.derive import plan_windows, required_steps, windows_to_mm
+from pf_pipeline.grib import decode_grib_file
 from pf_pipeline.runner import to_tier_grid
 from precip_core.codec import dequantize, quantize
 from precip_core.grid import res_from_code
@@ -32,7 +35,20 @@ from precip_core.registry import load_registry
 from precip_core.tiling import BilinearSampler, tile_axes, tiles_for_bbox
 
 
-def frames_for(reg, spec, tier, run_time, synthetic, access):
+def frames_from_grib(path, tier):
+    """Frames from a local GRIB file: windows between whichever accumulated steps it holds."""
+    acc, grid, noise = {}, None, {}
+    for f in decode_grib_file(path):
+        acc[f.step], grid = to_tier_grid(f, tier, res_from_code(tier.source_resolution))
+        noise[f.step] = f.meta["packing_step_mm"]
+    windows = plan_windows(set(acc), tier.fine_step_h, tier.fine_until_h, tier.daily_until_h)
+    mm, _ = windows_to_mm(acc, windows, noise)
+    return mm, grid, windows
+
+
+def frames_for(reg, spec, tier, run_time, synthetic, access, grib=None):
+    if grib:
+        return frames_from_grib(grib, tier)
     steps = set(spec.steps_for(run_time))
     windows = plan_windows(steps, tier.fine_step_h, tier.fine_until_h, tier.daily_until_h)
     need = required_steps(windows)
@@ -40,10 +56,11 @@ def frames_for(reg, spec, tier, run_time, synthetic, access):
     adapter = make_adapter(
         spec, synthetic=synthetic, **({"as_grib": False} if synthetic else kwargs)
     )
-    acc, grid = {}, None
+    acc, grid, noise = {}, None, {}
     for f in adapter.iter_fields(run_time, tier.source_resolution, sorted(need)):
         acc[f.step], grid = to_tier_grid(f, tier, res_from_code(tier.source_resolution))
-    mm, _ = windows_to_mm(acc, windows)
+        noise[f.step] = f.meta.get("packing_step_mm", 0.0)
+    mm, _ = windows_to_mm(acc, windows, noise)
     return mm, grid, windows
 
 
@@ -72,9 +89,9 @@ def sample_tiles(tier, grid, mm, size):
     return out
 
 
-def report_tier(reg, spec, tier, run_time, synthetic, access):
+def report_tier(reg, spec, tier, run_time, synthetic, access, grib=None):
     t0 = time.monotonic()
-    mm, grid, _windows = frames_for(reg, spec, tier, run_time, synthetic, access)
+    mm, grid, _windows = frames_for(reg, spec, tier, run_time, synthetic, access, grib)
     enc, size = reg.encoding, reg.tile.size
     print(
         f"\n### {spec.id} / {tier.id}  ({mm.shape[0]} frames, grid {grid.ny}x{grid.nx}, "
@@ -108,12 +125,15 @@ def report_tier(reg, spec, tier, run_time, synthetic, access):
     n = len(tiles)
 
     def row(name, total):
-        return print(f"| {name} | {total / n / 1024:,.0f} KB | {total / 1024:,.0f} KB |")
+        per_tile = total / n / 1024
+        return print(
+            f"| {name} | {per_tile:,.0f} KB | {per_tile / mm.shape[0]:,.1f} KB | {total / 1024:,.0f} KB |"
+        )
 
     print(
         f"**Encodings** ({n} tiles at zoom {tier.zoom_max}, all {mm.shape[0]} frames, one atlas per tile)\n"
     )
-    print("| encoding | per tile | all tiles |\n|---|---|---|")
+    print("| encoding | per tile | per tile per frame | all tiles |\n|---|---|---|---|")
     row("log8 PNG atlas (proposed)", sum(png_size(_atlas(q, 4)) for q in q_tiles))
     row("log8 WebP lossless atlas", sum(png_size(_atlas(q, 4), "WEBP") for q in q_tiles))
     lin_tiles = [
@@ -168,6 +188,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--real", action="store_true", help="use real ECMWF data (needs network)")
     ap.add_argument("--access", default=None)
+    ap.add_argument("--grib", default=None, help="local GRIB file with tp fields (no network)")
     ap.add_argument("--source", default="ecmwf-ifs")
     ap.add_argument("--tiers", default="t0-global,t1-south-asia,t2-india")
     ap.add_argument("--run", default="2026110500")
@@ -175,10 +196,15 @@ def main():
     reg = load_registry()
     spec = reg.source(a.source)
     run_time = datetime.strptime(a.run, "%Y%m%d%H").replace(tzinfo=UTC)
-    print(f"## Tile format spike: {'REAL' if a.real else 'SYNTHETIC'} data, run {a.run}")
+    kind = "REAL (local GRIB)" if a.grib else "REAL" if a.real else "SYNTHETIC"
+    print(f"## Tile format spike: {kind} data, run {a.run}")
     for t in reg.tiers_for(spec.id):
-        if t.id in a.tiers.split(","):
-            report_tier(reg, spec, t, run_time, not a.real, a.access)
+        if t.id not in a.tiers.split(","):
+            continue
+        if a.grib and t.source_resolution != "0p25":
+            print(f"\n(skipping {t.id}: the file is 0p25 but the tier needs {t.source_resolution})")
+            continue
+        report_tier(reg, spec, t, run_time, not (a.real or a.grib), a.access, a.grib)
 
 
 if __name__ == "__main__":

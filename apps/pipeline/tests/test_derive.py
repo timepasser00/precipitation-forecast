@@ -77,3 +77,31 @@ def test_decreasing_accumulation_is_rejected():
         windows_to_mm(
             {6: a6, 12: a12}, [FrameWindow(0, 6, "interval"), FrameWindow(6, 12, "interval")]
         )
+
+
+def _packed_pair(step_mm: float):
+    """Two accumulations of a mostly dry field whose second one is off by 1.5 packing steps."""
+    a6 = np.full((100, 100), 0.002, np.float32)
+    a12 = a6 - np.float32(1.5 * step_mm / 1000)
+    return {6: a6, 12: a12}
+
+
+def test_packing_noise_is_tolerated_when_the_packing_step_is_known():
+    w = [FrameWindow(0, 6, "interval"), FrameWindow(6, 12, "interval")]
+    acc = _packed_pair(0.1)  # a decrease of 0.15 mm everywhere
+    with pytest.raises(ConventionError):
+        windows_to_mm(acc, w)  # unexplained without the packing step
+    mm, q = windows_to_mm(acc, w, {6: 0.1, 12: 0.1})  # explained: tolerance is 0.2 mm
+    assert mm[1].max() == 0.0 and q.negative_fraction == 0.0
+
+
+def test_a_wrong_convention_is_still_rejected_despite_packing_tolerance():
+    rng = np.random.default_rng(1)
+    a6 = rng.random((50, 50), dtype=np.float32) * 0.01
+    a12 = rng.random((50, 50), dtype=np.float32) * 0.01
+    with pytest.raises(ConventionError):
+        windows_to_mm(
+            {6: a6, 12: a12},
+            [FrameWindow(0, 6, "interval"), FrameWindow(6, 12, "interval")],
+            {6: 0.1, 12: 0.1},
+        )

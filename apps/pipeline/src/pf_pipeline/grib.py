@@ -49,6 +49,12 @@ def _decode_message(gid) -> Field:
     if missing.any():
         arr = np.where(missing, np.float32(0.0), arr)
     arr *= np.float32(TO_METRES[units])
+    # Lossy packing stores values in steps of about range / 2**bits. Differences of two packed
+    # accumulations can therefore be wrong by about the sum of their steps (see derive.py).
+    bits = int(get("bitsPerValue"))
+    valid = arr[~missing]
+    span_m = float(valid.max() - valid.min()) if valid.size else 0.0
+    packing_step_mm = span_m * 1000.0 / (2**bits - 1) if bits > 0 else 0.0
 
     lat_first, lon_first = (
         get("latitudeOfFirstGridPointInDegrees"),
@@ -82,7 +88,11 @@ def _decode_message(gid) -> Field:
         values=np.ascontiguousarray(arr),
         grid=grid,
         run_time=run_time,
-        meta={"missing_fraction": missing_fraction, "units": units},
+        meta={
+            "missing_fraction": missing_fraction,
+            "units": units,
+            "packing_step_mm": packing_step_mm,
+        },
     )
 
 
