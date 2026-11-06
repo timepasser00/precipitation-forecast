@@ -39,9 +39,16 @@ Values are bilinear from the four surrounding cells of the native grid, not from
 is no data.
 
 ### `GET /v1/compare?lat=28.6&lon=77.2&sources=ecmwf-ifs,ecmwf-aifs`
-Latest run of each source (default: all published). Each result has the same shape as `/v1/point`,
-and all use UTC frame boundaries so they can be overlaid. A source that cannot answer is listed in
-`errors` and does not hide the others; 404 only if none can answer.
+Latest run of each source (default: all published). Each result has the same shape as `/v1/point`.
+A source that cannot answer is listed in `errors` and does not hide the others; 404 only if none
+can answer.
+
+**Not directly comparable yet.** Each source reports its own latest run, with its own run time
+and frame widths (real example: IFS 12z with 3-hourly frames, AIFS 18z with 6-hourly frames). So
+frames do not line up, and `totals_mm["24h"]` means "24 h from that run's start", which covers
+different real-world periods for different sources. Compare by `start`/`end` timestamps, never by
+index or by horizon label. A common comparison basis is an open design question (DESIGN section
+13, item 19).
 
 ## Errors
 `{"detail": "..."}` with: `404` unknown source/run/tier, nothing published yet, or the point lies

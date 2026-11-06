@@ -227,7 +227,11 @@ def create_app(settings: Settings | None = None, storage: Storage | None = None)
         ] = None,
     ) -> Comparison:
         """Latest run of each source at one location. A source that fails is reported in
-        `errors` and does not hide the others."""
+        `errors` and does not hide the others.
+
+        Sources keep their own run time and frame widths, so results are **not** aligned: compare
+        by each frame's `start`/`end`, not by index, and do not compare `totals_mm` horizons
+        across sources with different `run_time`."""
         cache(response, pinned=False)
         m = st.manifest()
         wanted = [s for s in (sources.split(",") if sources else sorted(m.sources)) if s]

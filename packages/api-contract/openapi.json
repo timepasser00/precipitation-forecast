@@ -845,7 +845,7 @@
     },
     "/v1/compare": {
       "get": {
-        "description": "Latest run of each source at one location. A source that fails is reported in\n`errors` and does not hide the others.",
+        "description": "Latest run of each source at one location. A source that fails is reported in\n`errors` and does not hide the others.\n\nSources keep their own run time and frame widths, so results are **not** aligned: compare\nby each frame's `start`/`end`, not by index, and do not compare `totals_mm` horizons\nacross sources with different `run_time`.",
         "operationId": "compare_v1_compare_get",
         "parameters": [
           {

@@ -363,6 +363,8 @@ Update: Hetzner's own page (2026-11-06) lists the default VM (CX23) at €5.99 p
 17. Deployment method: plain systemd timers with an idempotent CLI (ADR 0011); containers only if needed later.
 18. ~~Whether the repo will be hosted on GitHub~~ **Decided:** yes; GitHub Actions CI is in `.github/workflows/ci.yml`.
 
+19. **Comparison basis (found on the first real run).** Latest IFS is 12z (3-hourly frames) while latest AIFS is 18z (6-hourly), so frames and `24h` totals are not comparable. Options: (A) publish both sources for the same initialisation time and compare like with like; (B) a common valid-time axis built from cumulative rainfall at shared boundaries (calendar days in IST for India); (C) both. Leaning A for the science and B for the display. Decision needed before Phase 4.
+
 ## 14. Decision log
 
 | # | Decision | Status |
