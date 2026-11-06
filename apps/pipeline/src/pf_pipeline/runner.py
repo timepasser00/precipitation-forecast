@@ -20,6 +20,7 @@ from precip_core.manifest import (
     Frame,
     RunEntry,
     TierEntry,
+    as_utc,
     load_manifest,
     run_id,
     save_manifest,
@@ -134,7 +135,7 @@ def run_source(
     workers: int = 8,
 ) -> dict[str, dict]:
     """Fetch, build and publish every selected tier of one run. Returns a per-tier summary."""
-    run_time = run_time.astimezone(UTC)
+    run_time = as_utc(run_time)
     rid = run_id(run_time)
     synthetic = bool(adapter.synthetic)
     _check_not_mixing(storage, spec, synthetic)

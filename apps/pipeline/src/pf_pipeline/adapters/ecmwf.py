@@ -9,9 +9,10 @@ from __future__ import annotations
 import logging
 import tempfile
 from collections.abc import Callable, Iterator
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 
+from precip_core.manifest import as_utc
 from precip_core.registry import SourceSpec
 
 from ..fields import Field, PipelineError
@@ -59,14 +60,14 @@ class EcmwfAdapter:
         for access in self.access_paths:
             try:
                 res = self.spec.resolutions[0]
-                return self._client(access, res).latest(self._request(step=max(steps)))
+                return as_utc(self._client(access, res).latest(self._request(step=max(steps))))
             except Exception as e:
                 log.warning("latest() failed via %s: %s", access, e)
                 last_error = e
         raise PipelineError(f"{self.spec.id}: no access path worked: {last_error}")
 
     def iter_fields(self, run_time: datetime, resolution: str, steps: list[int]) -> Iterator[Field]:
-        run_time = run_time.astimezone(UTC)
+        run_time = as_utc(run_time)
         last_error: Exception | None = None
         with tempfile.TemporaryDirectory(dir=self.workdir) as tmp:
             target = Path(tmp) / f"{self.spec.id}_{run_time:%Y%m%d%H}_{resolution}.grib2"

@@ -14,9 +14,18 @@ MANIFEST_KEY = "manifest.json"
 SCHEMA_VERSION = 1
 
 
+def as_utc(dt: datetime) -> datetime:
+    """Timezone-aware UTC. A naive datetime is taken to already be UTC.
+
+    ``dt.astimezone(UTC)`` on a naive value assumes the machine's local zone, which silently
+    shifts it (12:00 becomes 06:30 on an IST machine). ecmwf-opendata returns naive UTC times.
+    """
+    return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
+
+
 def run_id(run_time: datetime) -> str:
     """UTC start time as YYYYMMDDHH."""
-    return run_time.astimezone(UTC).strftime("%Y%m%d%H")
+    return as_utc(run_time).strftime("%Y%m%d%H")
 
 
 def parse_run_id(rid: str) -> datetime:
