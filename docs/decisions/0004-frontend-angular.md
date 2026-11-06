@@ -9,7 +9,7 @@ The UI is map-heavy and animated, with a performance target of a useful map in u
 Build `apps/web` with Angular. The map renderer is chosen in Phase 2 and wrapped as an Angular component.
 
 ## Consequences (Proposed practices, confirmed in Phase 2)
-- Angular's baseline bundle is larger than minimal frameworks. Manage it with lazy-loaded routes and deferred views for the map and compare mode, and enforce bundle-size budgets in the build config.
+- Angular's baseline bundle is larger than minimal frameworks. Manage it with lazy-loaded routes and deferred views for the map, and enforce bundle-size budgets in the build config.
 - Keep per-frame rendering and animation outside Angular change detection (outside the zone, or zoneless) so the UI stays smooth.
 - The app is static output served from Cloudflare. Per Cloudflare's docs, requests to static assets are free and unlimited.
 - Server-side rendering is not needed for a map app. A prerendered landing page is optional.

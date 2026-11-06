@@ -1,6 +1,6 @@
 # apps/api
 
-FastAPI service. Read-only. Point forecasts and source comparison on top of what the pipeline
+FastAPI service. Read-only. Point forecasts on top of what the pipeline
 published; tiles go straight from the CDN to the browser.
 
 ```

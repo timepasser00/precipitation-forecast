@@ -7,7 +7,7 @@ flowchart LR
     M[AWS / Azure / GCP mirrors]
   end
   subgraph PIPE["apps/pipeline (batch)"]
-    F[Fetch GRIB2] --> D[Decode + derive<br/>accumulations, units, IFS vs AIFS diff] --> W[Write processed data + manifest]
+    F[Fetch GRIB2] --> D[Decode + derive<br/>accumulations, units, windows] --> W[Write processed data + manifest]
   end
   S[(Processed store<br/>data/processed -> object storage)]
   API["apps/api<br/>HTTP, documented via OpenAPI"]
@@ -34,5 +34,5 @@ flowchart LR
 
 - **We own history.** ECMWF keeps only the last 12 runs (about 2-3 days). Anything older exists only if the pipeline keeps it.
 - **Publication is staggered.** IFS 0.1° arrives about 2 hours after 0.25°. The pipeline and manifest must handle a run being partially available.
-- **Models differ in cadence.** AIFS is 6-hourly, IFS is 3-hourly early in the run. Comparison features need a common time base.
+- **Models differ in cadence.** AIFS is 6-hourly, IFS is 3-hourly early in the run, and their latest runs can differ (12z vs 18z). Each source is therefore shown on its own, with its own run time.
 - **Upstream can be busy.** Mirrors on AWS, Azure and GCP are the fallback path.

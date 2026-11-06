@@ -16,7 +16,6 @@ Map tiles are **not** served by the API. Clients read `manifest.json` and fetch 
 | `GET /v1/manifest` | The manifest, as map clients read it from the CDN |
 | `GET /v1/sources` | Sources with latest/previous run, tiers, licence attribution, `synthetic` flag |
 | `GET /v1/point` | Rainfall per frame at a location, one source |
-| `GET /v1/compare` | The same location across several sources |
 | `GET /data/*` | Raw tiles and cubes. **Development only** (`PF_API_SERVE_DATA=true`) |
 
 ### `GET /v1/point?lat=19.07&lon=72.88&source=ecmwf-ifs`
@@ -38,18 +37,6 @@ Values are bilinear from the four surrounding cells of the native grid, not from
 `totals_mm` only contains horizons fully covered by the tier's frames. `mm` is `null` where there
 is no data.
 
-### `GET /v1/compare?lat=28.6&lon=77.2&sources=ecmwf-ifs,ecmwf-aifs`
-Latest run of each source (default: all published). Each result has the same shape as `/v1/point`.
-A source that cannot answer is listed in `errors` and does not hide the others; 404 only if none
-can answer.
-
-**Not directly comparable yet.** Each source reports its own latest run, with its own run time
-and frame widths (real example: IFS 12z with 3-hourly frames, AIFS 18z with 6-hourly frames). So
-frames do not line up, and `totals_mm["24h"]` means "24 h from that run's start", which covers
-different real-world periods for different sources. Compare by `start`/`end` timestamps, never by
-index or by horizon label. A common comparison basis is an open design question (DESIGN section
-13, item 19).
-
 ## Errors
 `{"detail": "..."}` with: `404` unknown source/run/tier, nothing published yet, or the point lies
 outside the area covered; `422` invalid parameters; `503` an object the manifest lists is missing
@@ -59,7 +46,7 @@ from storage (a pipeline/storage fault).
 | Response | `Cache-Control` |
 |---|---|
 | `/v1/point` with `run` given | `public, max-age=31536000, immutable` |
-| `/v1/point`, `/v1/compare`, `/v1/sources`, `/v1/manifest` following latest | `public, max-age=60` |
+| `/v1/point`, `/v1/sources`, `/v1/manifest` following latest | `public, max-age=60` |
 | `/v1/config` | `public, max-age=300` |
 
 Inside the process: the manifest is cached for 30 s, and the 6 most recently used decoded cubes

@@ -59,19 +59,5 @@ class PointForecast(BaseModel):
     attribution: str | None = None
 
 
-class SourceError(BaseModel):
-    source: str
-    error: str
-
-
-class Comparison(BaseModel):
-    lat: float
-    lon: float
-    results: list[PointForecast]
-    errors: list[SourceError] = Field(
-        description="Sources that could not answer; the others are still returned."
-    )
-
-
 class Problem(BaseModel):
     detail: str

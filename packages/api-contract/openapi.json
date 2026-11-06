@@ -26,41 +26,6 @@
         "title": "ClientConfig",
         "type": "object"
       },
-      "Comparison": {
-        "properties": {
-          "errors": {
-            "description": "Sources that could not answer; the others are still returned.",
-            "items": {
-              "$ref": "#/components/schemas/SourceError"
-            },
-            "title": "Errors",
-            "type": "array"
-          },
-          "lat": {
-            "title": "Lat",
-            "type": "number"
-          },
-          "lon": {
-            "title": "Lon",
-            "type": "number"
-          },
-          "results": {
-            "items": {
-              "$ref": "#/components/schemas/PointForecast"
-            },
-            "title": "Results",
-            "type": "array"
-          }
-        },
-        "required": [
-          "lat",
-          "lon",
-          "results",
-          "errors"
-        ],
-        "title": "Comparison",
-        "type": "object"
-      },
       "Encoding": {
         "properties": {
           "first_level": {
@@ -446,24 +411,6 @@
         "title": "SourceEntry",
         "type": "object"
       },
-      "SourceError": {
-        "properties": {
-          "error": {
-            "title": "Error",
-            "type": "string"
-          },
-          "source": {
-            "title": "Source",
-            "type": "string"
-          }
-        },
-        "required": [
-          "source",
-          "error"
-        ],
-        "title": "SourceError",
-        "type": "object"
-      },
       "SourceInfo": {
         "properties": {
           "attribution": {
@@ -776,7 +723,7 @@
     }
   },
   "info": {
-    "description": "\nRead-only API over processed ECMWF open-data precipitation forecasts.\n\n**How it fits together.** A pipeline publishes immutable run data (map tiles and point cubes)\nplus a small `manifest.json` to object storage. Map clients read the manifest and fetch tiles\nstraight from the CDN; this API answers the questions a browser should not have to compute:\npoint forecasts and cross-source comparisons.\n\n**Caching.** Responses for a pinned `run` are immutable and cached for a year. Responses that\nfollow `latest` are cached for 60 seconds.\n\n**Units and time.** Rainfall is in millimetres over each frame's `[start, end)` window.\nAll timestamps are UTC (ISO 8601).\n",
+    "description": "\nRead-only API over processed ECMWF open-data precipitation forecasts.\n\n**How it fits together.** A pipeline publishes immutable run data (map tiles and point cubes)\nplus a small `manifest.json` to object storage. Map clients read the manifest and fetch tiles\nstraight from the CDN; this API answers the questions a browser should not have to compute:\npoint forecasts.\n\n**Caching.** Responses for a pinned `run` are immutable and cached for a year. Responses that\nfollow `latest` are cached for 60 seconds.\n\n**Units and time.** Rainfall is in millimetres over each frame's `[start, end)` window.\nAll timestamps are UTC (ISO 8601).\n",
     "title": "Precipitation Forecast API",
     "version": "0.1.0"
   },
@@ -840,94 +787,6 @@
         "summary": "Liveness and data check",
         "tags": [
           "meta"
-        ]
-      }
-    },
-    "/v1/compare": {
-      "get": {
-        "description": "Latest run of each source at one location. A source that fails is reported in\n`errors` and does not hide the others.\n\nSources keep their own run time and frame widths, so results are **not** aligned: compare\nby each frame's `start`/`end`, not by index, and do not compare `totals_mm` horizons\nacross sources with different `run_time`.",
-        "operationId": "compare_v1_compare_get",
-        "parameters": [
-          {
-            "description": "Latitude, degrees north.",
-            "in": "query",
-            "name": "lat",
-            "required": true,
-            "schema": {
-              "description": "Latitude, degrees north.",
-              "maximum": 90,
-              "minimum": -90,
-              "title": "Lat",
-              "type": "number"
-            }
-          },
-          {
-            "description": "Longitude, degrees east.",
-            "in": "query",
-            "name": "lon",
-            "required": true,
-            "schema": {
-              "description": "Longitude, degrees east.",
-              "maximum": 360,
-              "minimum": -180,
-              "title": "Lon",
-              "type": "number"
-            }
-          },
-          {
-            "description": "Comma-separated source ids; default all published.",
-            "in": "query",
-            "name": "sources",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Comma-separated source ids; default all published.",
-              "title": "Sources"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Comparison"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Same location, several sources",
-        "tags": [
-          "forecast"
         ]
       }
     },

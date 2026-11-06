@@ -13,12 +13,10 @@ from precip_core.storage import CACHE_IMMUTABLE, CACHE_MANIFEST, NotFound, Stora
 
 from .models import (
     ClientConfig,
-    Comparison,
     Health,
     PointForecast,
     PointFrame,
     Problem,
-    SourceError,
     SourceInfo,
 )
 from .sampling import sample_point
@@ -31,7 +29,7 @@ Read-only API over processed ECMWF open-data precipitation forecasts.
 **How it fits together.** A pipeline publishes immutable run data (map tiles and point cubes)
 plus a small `manifest.json` to object storage. Map clients read the manifest and fetch tiles
 straight from the CDN; this API answers the questions a browser should not have to compute:
-point forecasts and cross-source comparisons.
+point forecasts.
 
 **Caching.** Responses for a pinned `run` are immutable and cached for a year. Responses that
 follow `latest` are cached for 60 seconds.
@@ -209,44 +207,6 @@ def create_app(settings: Settings | None = None, storage: Storage | None = None)
         location, bilinearly interpolated from the finest published grid that covers it."""
         cache(response, pinned=run is not None)
         return point_forecast(source, run, tier, lat, lon)
-
-    @app.get(
-        "/v1/compare",
-        response_model=Comparison,
-        responses={404: {"model": Problem}},
-        tags=["forecast"],
-        summary="Same location, several sources",
-    )
-    def compare(
-        st: St,
-        response: Response,
-        lat: LatQ,
-        lon: LonQ,
-        sources: Annotated[
-            str | None, Query(description="Comma-separated source ids; default all published.")
-        ] = None,
-    ) -> Comparison:
-        """Latest run of each source at one location. A source that fails is reported in
-        `errors` and does not hide the others.
-
-        Sources keep their own run time and frame widths, so results are **not** aligned: compare
-        by each frame's `start`/`end`, not by index, and do not compare `totals_mm` horizons
-        across sources with different `run_time`."""
-        cache(response, pinned=False)
-        m = st.manifest()
-        wanted = [s for s in (sources.split(",") if sources else sorted(m.sources)) if s]
-        results: list[PointForecast] = []
-        errors: list[SourceError] = []
-        for sid in wanted:
-            try:
-                results.append(point_forecast(sid, None, None, lat, lon))
-            except HTTPException as e:
-                errors.append(SourceError(source=sid, error=str(e.detail)))
-        if not results:
-            raise HTTPException(
-                404, "; ".join(f"{e.source}: {e.error}" for e in errors) or "no sources"
-            )
-        return Comparison(lat=lat, lon=lon, results=results, errors=errors)
 
     # -- development data proxy ------------------------------------------------------------
 

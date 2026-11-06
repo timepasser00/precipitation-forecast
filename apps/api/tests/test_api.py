@@ -95,25 +95,6 @@ def test_point_before_any_publish_is_404(empty_client):
     assert empty_client.get("/v1/point", params={"lat": 0, "lon": 0}).status_code == 404
 
 
-def test_compare_returns_every_source(client):
-    body = client.get("/v1/compare", params=DELHI).json()
-    assert {r["source"] for r in body["results"]} == {"src-a", "src-b"}
-    assert body["errors"] == []
-    a, b = body["results"]
-    assert [f["start"] for f in a["frames"]] == [f["start"] for f in b["frames"]]  # same axis
-    assert [f["mm"] for f in a["frames"]] != [f["mm"] for f in b["frames"]]  # different forecasts
-
-
-def test_compare_isolates_a_failing_source(client):
-    body = client.get("/v1/compare", params={**DELHI, "sources": "src-a,ghost"}).json()
-    assert [r["source"] for r in body["results"]] == ["src-a"]
-    assert body["errors"][0]["source"] == "ghost"
-
-
-def test_compare_all_failing_is_404(client):
-    assert client.get("/v1/compare", params={**DELHI, "sources": "ghost"}).status_code == 404
-
-
 def test_manifest_passthrough(client):
     m = client.get("/v1/manifest").json()
     assert m["schema_version"] == 1 and set(m["sources"]) == {"src-a", "src-b"}
@@ -145,9 +126,7 @@ def test_data_proxy_is_off_by_default(published):
 
 def test_openapi_documents_the_contract(client):
     spec = client.get("/openapi.json").json()
-    assert {"/v1/point", "/v1/compare", "/v1/sources", "/v1/manifest", "/v1/config"} <= set(
-        spec["paths"]
-    )
+    assert {"/v1/point", "/v1/sources", "/v1/manifest", "/v1/config"} <= set(spec["paths"])
     assert "PointForecast" in spec["components"]["schemas"]
 
 

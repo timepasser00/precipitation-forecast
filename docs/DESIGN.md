@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | v0.5 (Phase 3 built, real-data checked; ready for review) |
+| Status | v0.6 (Phase 3 built, real-data checked; ready for review) |
 | Date | 2026-11-06 |
 | Owner | Atul Raj |
 | Audience | Primarily users in India |
@@ -15,7 +15,7 @@ Legend used below: **Decided** = agreed with the owner. **Proposed** = my recomm
 
 ## 1. Vision and goals
 
-A web app that turns ECMWF Open Data precipitation forecasts (IFS and AIFS) into an engaging, explorable experience: watch rain move across India, zoom into your city, and compare what different forecast sources expect. ECMWF IFS and AIFS are the starting sources.
+A web app that turns ECMWF Open Data precipitation forecasts (IFS and AIFS) into an engaging, explorable experience: watch rain move across India, zoom into your city, and see what the forecast expects. ECMWF IFS and AIFS are the starting sources; one source is shown at a time.
 
 | ID | Goal |
 |---|---|
@@ -23,7 +23,7 @@ A web app that turns ECMWF Open Data precipitation forecasts (IFS and AIFS) into
 | G2 | Engaging: animation, smooth zoom, a distinctive visual identity. |
 | G3 | Cheap to run in production, paid from personal funds. |
 | G4 | Honest: never imply more precision than the model or the data has. |
-| G5 | Comparing forecast sources side by side (starting with IFS vs AIFS, designed for more) is a first-class feature. |
+| G5 | One source at a time, with an easy switch between sources (IFS, AIFS, more later). Cross-source comparison is out of scope (owner decision, ADR 0012). |
 | G6 | Source-agnostic: fetch from whichever source and access path gives the best cost, quality and correctness. |
 
 **Non-goals for v1:** user accounts, historical archive, nowcasting, variables other than precipitation, native mobile apps, global high-resolution data, ensemble/probability views (designed for, built later).
@@ -67,7 +67,7 @@ A web app that turns ECMWF Open Data precipitation forecasts (IFS and AIFS) into
 | FR2 | Time slider and play/pause animation | 4 |
 | FR3 | Zoom with progressive refinement (coarse tile instantly, sharper tile fades in) | 4 |
 | FR4 | Point forecast: search, click or geolocate to get a time series for each enabled source | 3-4 |
-| FR5 | Compare any two enabled sources (side-by-side, difference map, overlaid point charts) on a common grid and time base | 4 |
+| FR5 | Switch between enabled sources; each view shows one source with its run time and native resolution | 4 |
 | FR6 | Show model run time and data age, in IST | 4 |
 | FR7 | Visible ECMWF attribution as required by the licence (**Verify** exact wording) | 4 |
 | FR8 | "What changed since the previous run" view (**Proposed**) | post-v1 |
@@ -150,12 +150,10 @@ Rule: prefer original-fidelity files from a mirror with free or cheap egress. A 
 | India's NCMRWF models | Open download access and terms could not be confirmed | **Investigate** |
 | Observed rainfall (satellite products) | Not researched | Idea: shows which source was closer to reality. Needs a short observation history, which relaxes "forget the past" slightly |
 
-### 5.6 Making sources comparable
+### 5.6 Canonical form
 
-- **Canonical form:** one variable (precipitation), millimetres per interval, UTC time axis, regular lat/lon grid per tier.
-- **Comparison grid:** in compare mode all sources are resampled to one shared grid (0.25° baseline). Single-source views still use each source's own tiers. Resampling must preserve rainfall totals (area-weighted, not plain interpolation). **Verify** in Phase 3.
-- **Time base:** compare on the coarsest common cadence, and only over the horizon every selected source covers. Say so in the UI.
-- **Run alignment:** sources publish at different times. Compare the latest run of each by valid time, and show each run's time.
+- **Canonical form:** one variable (precipitation), millimetres per interval, UTC time axis, regular lat/lon grid per tier. Every source adapter produces it, so downstream code never sees provider formats.
+- **No cross-source alignment.** Each source keeps its own latest run, cadence, horizon and tiers, and is shown on its own. Comparison (shared grid, common time base, run alignment) was dropped by the owner on 2026-11-06 (ADR 0012); it can be added later without changing storage.
 
 ## 6. Architecture
 
@@ -262,7 +260,6 @@ Endpoints as built (details in `docs/api.md`, contract in `packages/api-contract
 | `GET /v1/manifest` | Sources, runs, tiers, frames, tile locations |
 | `GET /v1/sources` | Sources with latest run, tiers, licence attribution |
 | `GET /v1/point?lat=&lon=&source=` | Series at a location from the finest tier covering it |
-| `GET /v1/compare?lat=&lon=&sources=` | Same location across sources, failures isolated |
 
 Differences from the sketch: no `/v1/health` (it is `/healthz`); points are not snapped to grid cells (the answer is interpolated, and caching relies on the CDN and `run` pinning); rate limiting is deferred to Phase 5.
 
@@ -274,7 +271,7 @@ The frontend is **Angular** (Decided, ADR 0004). The map renderer and state appr
 - **Same idea in time.** Daily totals first, 3-hourly frames when the user scrubs in.
 - **Prefetch.** Fetch neighbouring tiles and the next few time frames around the user's viewport and play head. Geography informs browser prefetch, not server computation.
 - **Honest labelling.** Show the native resolution and model next to the map. Do not present upscaled data as detail.
-- **Compare mode.** Pick sources, then view side by side, as a difference map, or as overlaid point charts. Each layer names its source, run time and native resolution, and the overlapping horizon is stated.
+- **Source switch.** One control to switch between sources. Each view names its source, run time and native resolution.
 - **Distinct identity.** A deliberate visual language for rain, not a default weather-map look. Colour-blind-safe, reduced-motion aware.
 - **Always show data age and run time**, in IST.
 - Attribution to ECMWF is always visible.
@@ -340,7 +337,6 @@ Update: Hetzner's own page (2026-11-06) lists the default VM (CX23) at €5.99 p
 | Attribution non-compliance | Licence breach | Build attribution into the UI from the first release |
 | A source's terms forbid redistribution | Legal exposure | Licence gate before enabling, licence field in the registry |
 | Cache not configured, or `r2.dev` used in production | Cost spike, rate limits, slow tiles | Custom domain, Cache Rule, automated header and hit tests |
-| Sources not comparable (grids, cadence, horizon differ) | Misleading comparisons | Common grid and time base, area-weighted resampling, show only the overlapping horizon, label native resolution |
 
 ## 13. Open questions and items to verify
 
@@ -356,14 +352,14 @@ Update: Hetzner's own page (2026-11-06) lists the default VM (CX23) at €5.99 p
 10. Sources beyond IFS and AIFS. **Default taken:** v1 enables `ecmwf-ifs` and `ecmwf-aifs`; `noaa-gfs` is the first candidate, to be verified in the Phase 3 spike; others later. Owner may change.
 11. Observations (satellite rainfall) to show which source was closer. **Default taken:** deferred past v1. Owner may change.
 12. Do byte-range reads of larger packed files cache well on Cloudflare? Phase 3 spike.
-13. Resampling method that preserves rainfall totals when putting sources on a common grid.
+13. ~~Resampling method that preserves rainfall totals when putting sources on a common grid.~~ Dropped with comparison (ADR 0012).
 14. Tile and atlas format: **accepted** (ADR 0008), checked on real 0.25 degree fields. Remaining: full-run sizes, 0.1 degree tier, phone decode speed, Cloudflare cache behaviour.
 15. Basemap source and style (Phase 4 design).
 16. Hetzner price, stock, VAT and IPv4 charge at order time (ADR 0011).
 17. Deployment method: plain systemd timers with an idempotent CLI (ADR 0011); containers only if needed later.
 18. ~~Whether the repo will be hosted on GitHub~~ **Decided:** yes; GitHub Actions CI is in `.github/workflows/ci.yml`.
 
-19. **Comparison basis (found on the first real run).** Latest IFS is 12z (3-hourly frames) while latest AIFS is 18z (6-hourly), so frames and `24h` totals are not comparable. Options: (A) publish both sources for the same initialisation time and compare like with like; (B) a common valid-time axis built from cumulative rainfall at shared boundaries (calendar days in IST for India); (C) both. Leaning A for the science and B for the display. Decision needed before Phase 4.
+19. ~~Comparison basis across sources~~ **Dropped (ADR 0012).** Found on the first real run that latest IFS (12z, 3-hourly) and AIFS (18z, 6-hourly) are not directly comparable; the owner chose not to show comparisons.
 
 ## 14. Decision log
 
@@ -373,7 +369,8 @@ Update: Hetzner's own page (2026-11-06) lists the default VM (CX23) at €5.99 p
 | 0002 | Tiered resolution, time policy and retention | Accepted as baseline |
 | 0003 | Static-first delivery and cost guardrails (Cloudflare R2 + CDN chosen) | Accepted |
 | 0004 | Angular frontend | Decided by owner |
-| 0005 | Source-agnostic ingestion and comparison | Accepted as baseline |
+| 0005 | Source-agnostic ingestion (comparison part superseded by 0012) | Accepted as baseline |
+| 0012 | Drop cross-source comparison; one source at a time | Decided by owner |
 | 0006 | Caching strategy | Accepted as baseline |
 | 0007 | Python for pipeline and API (FastAPI, eccodes) | Accepted |
 | 0008 | Tile and data format (log8 PNG atlases, separate point cube) | Accepted (checked on real 0.25 degree data) |
@@ -397,6 +394,7 @@ Update: Hetzner's own page (2026-11-06) lists the default VM (CX23) at €5.99 p
 
 ## 16. Changelog
 
+- **v0.6 (2026-11-06):** cross-source comparison dropped (ADR 0012): goal G5, FR5, section 5.6, API and UI sections, risk and open questions 13 and 19 updated; `/v1/compare` removed.
 - **v0.5 (2026-11-06):** real IFS/AIFS fields checked: convention verified, packing-noise tolerance added to the guard, real sizes 2-3x synthetic (5.4 revised), ADR 0008 accepted.
 - **v0.4 (2026-11-06):** Phase 3 built: pipeline, API, shared core, CI, OpenAPI contract. ADR 0008 accepted provisionally with measured sizes; 5.4 and section 7 updated to what was built; open questions 14, 17, 18 updated.
 - **v0.3 (2026-11-06):** Phase 2 stack decisions (ADRs 0007-0011), technology stack table (6.4), defaults taken for open questions 7, 10, 11, Hetzner price update.
